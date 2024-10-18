@@ -16,7 +16,7 @@ const ignoredPages = {
   downloads: true
 };
 
-let navDebug = true;
+let navDebug = false;
 
 function matchChannelName(url) {
   if (!url) return undefined;
