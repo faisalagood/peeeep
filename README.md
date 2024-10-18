@@ -1,4 +1,4 @@
-# Simple Emote Extension
+## <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP"> Simple Emote Extension <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP">
 
 Simple Emote Extension is a browser extension that enhances your Twitch viewing experience by adding support for third-party emotes.
 
@@ -7,7 +7,6 @@ Simple Emote Extension is a browser extension that enhances your Twitch viewing 
 - Displays third-party emotes in Twitch chat.
 - Shows tooltips with emote information on hover (including emote name, source, and preview).
 - Currently supports modifier emotes from 7TV.
-- Lightweight and efficient, minimizing impact on browser performance.
 
 ## Installation
 
