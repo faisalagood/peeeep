@@ -4,9 +4,9 @@ Simple Emote Extension is a browser extension that enhances your Twitch viewing 
 
 ## Features
 
-- Displays third-party emotes in Twitch chat.
+- Displays third-party emotes in Twitch chat. (7TV, FFZ, BTTV)
 - Shows tooltips with emote information on hover (including emote name, source, and preview).
-- Currently supports modifier emotes from 7TV.
+- Only supports modifier emotes from 7TV.
 
 ## Installation
 
