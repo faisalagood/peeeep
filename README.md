@@ -6,7 +6,8 @@ Simple Emote Extension is a browser extension that enhances your Twitch viewing 
 
 - Displays third-party emotes in Twitch chat. (7TV, FFZ, BTTV)
 - Shows tooltips with emote information on hover (including emote name, source, and preview).
-- Only supports modifier emotes from 7TV.
+- Only supports modifier emotes from 7TV. (For now)
+- Firefox doesn't work, support removed temporarily. <img src="https://cdn.frankerfacez.com/emote/425196/1" alt="Sadge">
 
 ## Installation
 
@@ -23,12 +24,6 @@ Simple Emote Extension is a browser extension that enhances your Twitch viewing 
 - Navigate to `chrome://extensions/`.
 - Enable **Developer mode** in the top right corner.
 - Click **Load unpacked** and select the **ROOT** directory from the extension's source code.
-
-### Firefox:
-
-- Navigate to `about:debugging`.
-- Click **This Firefox** in the sidebar.
-- Click **Load Temporary Add-on** and select the `manifest.json` file from the extension's source code.
 
 ## Usage
 
