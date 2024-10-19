@@ -1919,7 +1919,7 @@ const processMessageContent = (chatMessageBody) => {
   let modifierDiv = null;
 
   let textFragmentSpan = chatMessageBody.querySelector(".text-fragment");
-  if (textFragmentSpan) {
+  if (textFragmentSpan && textFragmentSpan.textContent.trim()) {
     const words = textFragmentSpan.textContent.split(/\s+/);
     words.forEach((word) => {
       ({ fragment, text, modifierDiv, currentState } = processWord(
@@ -1930,6 +1930,8 @@ const processMessageContent = (chatMessageBody) => {
         currentState
       ));
     });
+  } else {
+    return null;
   }
 
   return { fragment, text, modifierDiv, currentState };
@@ -1938,7 +1940,11 @@ const processMessageContent = (chatMessageBody) => {
 const processChatMessage = (chatMessageBody) => {
   if (!chatMessageBody || !(0,_emotes_js__WEBPACK_IMPORTED_MODULE_0__.containsEmote)(chatMessageBody)) return;
 
-  let { fragment, text, modifierDiv } = processMessageContent(chatMessageBody);
+  let result = processMessageContent(chatMessageBody);
+
+  if (!result) return;
+
+  let { fragment, text, modifierDiv } = result;
   if (text.trim()) fragment.appendChild(createTextFragment(text));
   if (modifierDiv) fragment.appendChild(modifierDiv);
 
@@ -2201,7 +2207,7 @@ const manageEventListeners = () => {
         if (distanceX > maxDistance || distanceY > maxDistance) {
           handleMouseLeave();
         }
-      },
+      },  
       { once: true }
     );
   });
