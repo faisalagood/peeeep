@@ -1,6 +1,15 @@
 import { getTwitchUserId } from "./lib.js";
 import { initializeEmotes, loadEmotes } from "./emotes.js";
 
+// Keep track of the current username
+
+let currentUsername = null;
+
+// Log website navigation
+
+let navDebug = true;
+
+
 // Ignored pages for URL changes
 
 const ignoredPages = {
@@ -13,10 +22,8 @@ const ignoredPages = {
   directory: true,
   videos: true,
   prime: true,
-  downloads: true
+  downloads: true,
 };
-
-let navDebug = false;
 
 function matchChannelName(url) {
   if (!url) return undefined;
@@ -32,22 +39,34 @@ function matchChannelName(url) {
   return undefined;
 }
 
-window.navigation.addEventListener("navigate", async (event) => {
-  const newUsername = matchChannelName(event.destination.url);
+// if (window.navigation) {
+//   window.navigation.addEventListener("navigate", async (event) => {
+//     const newUsername = matchChannelName(event.destination.url);
 
-  if (newUsername) {
-    await urlChangeHandler(newUsername);
-  }
-});
+//     if (newUsername) {
+//       await urlChangeHandler(newUsername);
+//     }
+//   });
+// }
 
 const urlChangeHandler = async (newUsername) => {
-  if (navDebug)
-    console.info("URL changed, loading emotes for new user:", newUsername);
+  // Check if the username has actually changed
 
-  const data = await getTwitchUserId(newUsername);
+  if (newUsername !== currentUsername) {
+    if (navDebug) {
+      console.info("URL changed, loading emotes for new user:", newUsername);
+    }
 
-  await initializeEmotes();
-  await loadEmotes({ id: data.id, username: data.username });
+    currentUsername = newUsername; // Update the current username
+
+    const data = await getTwitchUserId(newUsername);
+    await initializeEmotes();
+    await loadEmotes({ id: data.id, username: data.username });
+  } else {
+    if (navDebug) {
+      console.info("URL did not change, skipping emote loading.");
+    }
+  }
 };
 
 export { matchChannelName, urlChangeHandler };

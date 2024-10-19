@@ -16,10 +16,10 @@ setupChatObserver();
 async function main() {
   await addModifierStyles();
   await initializeEmotes();
+  manageEventListeners();
   const currentUsername = matchChannelName(window.location.href);
 
   if (currentUsername) {
-    manageEventListeners();
     const data = await getTwitchUserId(currentUsername);
     await loadEmotes({ id: data.id, username: data.username });
   }

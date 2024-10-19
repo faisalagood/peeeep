@@ -1,5 +1,5 @@
 const emotes = new Map();
-let emotesDebug = false;
+let emotesDebug = true;
 let emoteRegex;
 let globalEmotesLoaded = false;
 let currentUserObject;
@@ -94,7 +94,7 @@ async function loadFFZEmotes(id) {
           emotes.set(emote.name, {
             name: emote.name,
             url: emote.urls[1],
-            bigUrl: emote.urls[2],
+            bigUrl: emote.urls[4],
             height: emote.height || null,
             width: emote.width || null,
             service: "ffz"
@@ -207,7 +207,7 @@ async function loadGlobalEmotes() {
           emotes.set(emote.name, {
             name: emote.name,
             url: emote.urls[1],
-            url: emote.urls[2],
+            bigUrl: emote.urls[4],
             height: emote.height || null,
             width: emote.width || null,
             service: "ffz"
@@ -309,12 +309,13 @@ function getEmote(emoteName) {
 
 const createEmoteRegex = (emoteMap) => {
   const escapedEmoteNames = Array.from(emoteMap.keys()).map((name) => {
-    // Escape special regex characters
-    return name.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&'); 
+    // Escape all special regex characters, including the colon
+    return name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); 
   });
 
+  // Use a more flexible pattern to match emotes
   return new RegExp(
-    escapedEmoteNames.map((name) => `\\b(${name})\\b`).join("|"),
+    escapedEmoteNames.map((name) => `(${name})`).join("|"), 
     "i"
   );
 };
