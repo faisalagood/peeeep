@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Simple Emote Extension",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Make Twitch Chat Readable Again",
   "permissions": ["activeTab", "scripting"],
   "content_scripts": [
