@@ -2131,7 +2131,7 @@ const manageEventListeners = () => {
 
       const emoteServiceDiv = document.createElement("div");
       emoteServiceDiv.classList.add("emote-service");
-      emoteServiceDiv.textContent = emoteInfo.service.toUpperCase(); // Assuming service is part of emote object
+      emoteServiceDiv.textContent = emoteInfo.service.toUpperCase();
 
       emoteInfoDiv.appendChild(emoteNameDiv);
       emoteInfoDiv.appendChild(emoteServiceDiv);
@@ -2142,6 +2142,7 @@ const manageEventListeners = () => {
     });
 
     const updateTooltipPosition = (e) => {
+      if (!tooltip) return; // Check if tooltip still exists
       const tooltipRect = tooltip.getBoundingClientRect();
       tooltip.style.left = `${Math.min(
         window.innerWidth - tooltipRect.width - 10,
@@ -2156,7 +2157,15 @@ const manageEventListeners = () => {
     updateTooltipPosition(event);
     isTooltipActive = true;
 
-    document.addEventListener("mousemove", updateTooltipPosition);
+    const mouseMoveHandler = (e) => {
+      if (isTooltipActive) {
+        updateTooltipPosition(e);
+      } else {
+        document.removeEventListener("mousemove", mouseMoveHandler);
+      }
+    };
+
+    document.addEventListener("mousemove", mouseMoveHandler);
 
     // Tooltip removal logic
     const removeTooltip = () => {
@@ -2164,12 +2173,11 @@ const manageEventListeners = () => {
         tooltip.remove();
         tooltip = null;
       }
-      document.removeEventListener("mousemove", updateTooltipPosition);
       isTooltipActive = false;
+      document.removeEventListener("mousemove", mouseMoveHandler);
     };
 
     const handleMouseLeave = () => {
-      // Ensure tooltip is removed when mouse leaves the emote area
       removeTooltip();
     };
 
