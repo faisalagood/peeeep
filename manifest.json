@@ -4,11 +4,17 @@
   "version": "0.0.2",
   "description": "Make Twitch Chat Readable Again",
   "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://*.twitch.tv/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
   "content_scripts": [
     {
+      "all_frames": true,
       "matches": ["https://www.twitch.tv/*"],
       "js": ["./bundle.js"],
-      "run_at": "document_end"
+      "run_at": "document_end",
+      "world": "MAIN"
     }
   ],
   "icons": {

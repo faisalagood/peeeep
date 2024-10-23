@@ -36,7 +36,6 @@ const loadTwitchEmotes = async (username) => {
     return emotes;
   } catch (error) {
     console.error("Error fetching emotes:", error);
-    throw error;
   }
 };
 
@@ -75,7 +74,6 @@ const loadGlobalTwitchEmotes = async (emoteSetId) => {
     }
   } catch (error) {
     console.error("Error fetching emotes:", error);
-    throw error;
   }
 };
 
@@ -97,15 +95,14 @@ async function loadFFZEmotes(id) {
             bigUrl: emote.urls[4],
             height: emote.height || null,
             width: emote.width || null,
-            service: "ffz"
+            service: "ffz",
           });
         }
       }
     }
   } catch (error) {
-    if (emotesDebug) {
+    if (emotesDebug)
       console.error(`Error loading FFZ emotes for ${username}:`, error.message);
-    }
   }
 }
 
@@ -130,17 +127,16 @@ async function loadBTTVEmotes(userId) {
           bigUrl: `https://cdn.betterttv.net/emote/${emote.id}/3x`,
           width: emote.width || null,
           height: emote.height || null,
-          service: "bttv"
+          service: "bttv",
         });
       }
     }
   } catch (error) {
-    if (emotesDebug) {
+    if (emotesDebug)
       console.error(
         `Error loading BTTV emotes for user ${userId}:`,
         error.message
       );
-    }
   }
 }
 
@@ -161,19 +157,18 @@ async function load7TVEmotes(userId) {
             bigUrl: `https:${emote.data.host.url}/3x.webp`,
             width: file.width || null,
             height: file.height || null,
-            modifier: emote.flags > 0,
-            service: "7tv"
+            modifier: (emote.flags > 0 || emote.data.flags > 0),
+            service: "7tv",
           });
         }
       }
     }
   } catch (error) {
-    if (emotesDebug) {
+    if (emotesDebug)
       console.error(
         `Error loading 7TV emotes for user ${userId}:`,
         error.message
       );
-    }
   }
 }
 
@@ -210,7 +205,7 @@ async function loadGlobalEmotes() {
             bigUrl: emote.urls[4],
             height: emote.height || null,
             width: emote.width || null,
-            service: "ffz"
+            service: "ffz",
           });
         }
       }
@@ -226,7 +221,7 @@ async function loadGlobalEmotes() {
             bigUrl: `https://cdn.betterttv.net/emote/${emote.id}/3x`,
             width: emote.width || null,
             height: emote.height || null,
-            service: "bttv"
+            service: "bttv",
           });
         }
       }
@@ -243,46 +238,36 @@ async function loadGlobalEmotes() {
             bigUrl: `https:${emote.data.host.url}/3x.webp`,
             width: file.width || null,
             height: file.height || null,
-            modifier: emote.flags > 0,
-            service: "7tv"
+            modifier: emote.data.flags > 0,
+            service: "7tv",
           });
         }
       }
     }
 
-    if (emotesDebug) {
-      console.info("Loaded global emotes:", emotes.size);
-    }
+    if (emotesDebug) console.info("Loaded global emotes:", emotes.size);
   } catch (error) {
-    if (emotesDebug) {
+    if (emotesDebug)
       console.error("Error loading global emotes:", error.message);
-    }
   }
 }
 
 async function loadEmotes(userObject) {
   // Check if all required fields are present
   if (!userObject || !userObject.username || !userObject.id) {
-    if (emotesDebug) {
-      console.error("Invalid userObject provided:", userObject);
-    }
+    if (emotesDebug) console.error("Invalid userObject provided:", userObject);
+
     return;
   }
 
   // Check if emotes are already loaded for this user
-  if (currentUserObject && currentUserObject.id === userObject.id) {
-    if (emotesDebug) {
-      console.info(`Emotes already loaded for ${userObject.username}`);
-    }
-    return; 
-  }
+  if (currentUserObject && currentUserObject.id === userObject.id) return;
 
   // Update currentUserObject to the new user
-  currentUserObject = userObject; 
+  currentUserObject = userObject;
 
-  if (emotesDebug) {
+  if (emotesDebug)
     console.info(`Loading emotes for channel: ${userObject.username}`);
-  }
 
   try {
     await Promise.all([
@@ -310,12 +295,12 @@ function getEmote(emoteName) {
 const createEmoteRegex = (emoteMap) => {
   const escapedEmoteNames = Array.from(emoteMap.keys()).map((name) => {
     // Escape all special regex characters, including the colon
-    return name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); 
+    return name.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
   });
 
   // Use a more flexible pattern to match emotes
   return new RegExp(
-    escapedEmoteNames.map((name) => `(${name})`).join("|"), 
+    escapedEmoteNames.map((name) => `(${name})`).join("|"),
     "i"
   );
 };
@@ -324,11 +309,11 @@ const containsEmote = (element) => emoteRegex.test(element.textContent);
 
 async function initializeEmotes() {
   // Load global emotes once
-  if (!globalEmotesLoaded)  {
+  if (!globalEmotesLoaded) {
     await loadGlobalEmotes();
     globalEmotesLoaded = true;
   }
-  
+
   emoteRegex = createEmoteRegex(emotes);
 }
 

@@ -1,12 +1,18 @@
-import { getEmote, containsEmote } from "./emotes.js";
-import { urlChangeHandler } from "./navigation.js";
+import { getEmote, containsEmote, loadEmotes } from "./emotes.js";
 import { MutationSummary } from "mutation-summary";
+import { matchChannelName } from "./navigation.js";
+import { getTwitchUserId } from "./lib.js";
+
+// Global references
+let currentMessageContainer = null;
+let currentOriginalAppendChild = null;
+let currentOriginalInsertBefore = null;
+let currentOriginalRemoveChild = null;
 
 // Helper functions
 const createTextFragment = (text) => {
   const span = document.createElement("span");
   span.classList.add("text-fragment");
-  if (text.trim() === "") span.classList.add("spacer");
   span.textContent = text;
   return span;
 };
@@ -20,10 +26,20 @@ const createEmoteImage = (emote) => {
   return img;
 };
 
-const processWord = (word, fragment, text, modifierDiv, currentState) => {
+// Avoid unnecessary layout thrashing
+const processWord = (
+  word,
+  fragment,
+  text,
+  modifierDiv,
+  currentState,
+  lastRegularEmote
+) => {
   if (word.startsWith("@"))
-    return { fragment, text, modifierDiv, currentState }; // Skip mentions
+    return { fragment, text, modifierDiv, currentState, lastRegularEmote };
+
   const emote = getEmote(word);
+
   if (emote) {
     if (text.trim()) {
       fragment.appendChild(createTextFragment(text));
@@ -31,14 +47,16 @@ const processWord = (word, fragment, text, modifierDiv, currentState) => {
     }
 
     const emoteImage = createEmoteImage(emote);
+
     if (emote.modifier) {
-      if (currentState === "PROCESSING") {
-        currentState = "PROCESSING_MODIFIER";
+      if (currentState !== "PROCESSING_MODIFIER") {
         modifierDiv = document.createElement("div");
         modifierDiv.classList.add("modifier-container");
-        if (fragment.lastElementChild instanceof HTMLImageElement) {
-          modifierDiv.appendChild(fragment.lastElementChild);
+        if (lastRegularEmote) {
+          modifierDiv.appendChild(lastRegularEmote);
+          lastRegularEmote = null;
         }
+        currentState = "PROCESSING_MODIFIER";
       }
       modifierDiv.appendChild(emoteImage);
     } else {
@@ -47,13 +65,23 @@ const processWord = (word, fragment, text, modifierDiv, currentState) => {
         modifierDiv = null;
         currentState = "PROCESSING";
       }
+      lastRegularEmote = emoteImage;
       fragment.appendChild(emoteImage);
     }
   } else {
+    if (currentState === "PROCESSING_MODIFIER") {
+      fragment.appendChild(modifierDiv);
+      modifierDiv = null;
+      currentState = "PROCESSING";
+    }
+    if (lastRegularEmote) {
+      fragment.appendChild(lastRegularEmote);
+      lastRegularEmote = null;
+    }
     text += ` ${word} `;
   }
 
-  return { fragment, text, modifierDiv, currentState };
+  return { fragment, text, modifierDiv, currentState, lastRegularEmote };
 };
 
 const processMessageContent = (chatMessageBody) => {
@@ -61,305 +89,382 @@ const processMessageContent = (chatMessageBody) => {
   let fragment = new DocumentFragment();
   let text = "";
   let modifierDiv = null;
+  let lastRegularEmote = null;
 
-  let textFragmentSpan = chatMessageBody.querySelector(".text-fragment");
-  if (textFragmentSpan && textFragmentSpan.textContent.trim()) {
-    const words = textFragmentSpan.textContent.split(/\s+/);
-    words.forEach((word) => {
-      ({ fragment, text, modifierDiv, currentState } = processWord(
-        word,
-        fragment,
-        text,
-        modifierDiv,
-        currentState
-      ));
-    });
-  } else {
-    return null;
+  chatMessageBody.childNodes.forEach((node) => {
+    if (node.tagName === "SPAN" || node.classList.contains("text-fragment")) {
+      const words = (node.textContent || node.data).split(/\s+/);
+      words.forEach((word) => {
+        ({ fragment, text, modifierDiv, currentState, lastRegularEmote } =
+          processWord(
+            word,
+            fragment,
+            text,
+            modifierDiv,
+            currentState,
+            lastRegularEmote
+          ));
+      });
+    } else {
+      fragment.appendChild(node.cloneNode(true));
+    }
+  });
+
+  // Finalize any remaining modifier div, regular emote, or text
+  if (currentState === "PROCESSING_MODIFIER" && modifierDiv) {
+    fragment.appendChild(modifierDiv);
+  } else if (lastRegularEmote) {
+    fragment.appendChild(lastRegularEmote);
+  }
+  if (text.trim()) {
+    fragment.appendChild(createTextFragment(text));
   }
 
-  return { fragment, text, modifierDiv, currentState };
+  return fragment;
 };
 
 const processChatMessage = (chatMessageBody) => {
-  if (!chatMessageBody || !containsEmote(chatMessageBody)) return;
+  if (!chatMessageBody || !containsEmote(chatMessageBody)) return null;
 
-  let result = processMessageContent(chatMessageBody);
-
-  if (!result) return;
-
-  let { fragment, text, modifierDiv } = result;
-  if (text.trim()) fragment.appendChild(createTextFragment(text));
-  if (modifierDiv) fragment.appendChild(modifierDiv);
-
-  chatMessageBody.replaceChildren(fragment);
+  const processedContent = processMessageContent(chatMessageBody);
+  return processedContent || null;
 };
 
-const setupChatObserver = () => {
-  let eventListenersLoaded = false;
+// Optimize chat container override
+function findAndOverrideChat() {
+  const messageContainer = document.querySelector(
+    ".chat-scrollable-area__message-container"
+  );
 
-  const processMutations = async (summaries) => {
-    const chatMessages = summaries[0].added; // Array of added chat messages
-    const promises = [];
+  // Avoid re-binding if the same container is detected
+  if (!messageContainer || messageContainer === currentMessageContainer) return;
 
-    chatMessages.forEach((node) => {
-      if (!eventListenersLoaded) {
-        manageEventListeners();
-        eventListenersLoaded = true;
+  // Clean up old references if they exist
+  if (currentMessageContainer) {
+    if (currentOriginalAppendChild) {
+      currentMessageContainer.appendChild = currentOriginalAppendChild;
+    }
+    if (currentOriginalInsertBefore) {
+      currentMessageContainer.insertBefore = currentOriginalInsertBefore;
+    }
+    if (currentOriginalRemoveChild) {
+      currentMessageContainer.removeChild = currentOriginalRemoveChild;
+    }
+  }
+
+  // Store the container and its original methods
+  currentMessageContainer = messageContainer;
+  currentOriginalAppendChild =
+    messageContainer.appendChild.bind(messageContainer);
+  currentOriginalInsertBefore =
+    messageContainer.insertBefore.bind(messageContainer);
+  currentOriginalRemoveChild =
+    messageContainer.removeChild.bind(messageContainer);
+
+  // Override appendChild using requestAnimationFrame for DOM batch updates
+  messageContainer.appendChild = async function (child) {
+    processChildNode(child);
+    return currentOriginalAppendChild(child);
+  };
+
+  // Override removeChild
+  messageContainer.removeChild = async function (child) {
+    try {
+      return currentOriginalRemoveChild(child);
+    } catch (e) {
+      if (e.name === "NotFoundError") {
+        return child;
       }
+      throw e;
+    }
+  };
 
-      if (node.dataset?.aTarget === "chat-line-message-body") {
-        promises.push(processChatMessage(node));
-      }
+  // Override insertBefore
+  messageContainer.insertBefore = async function (newNode, referenceNode) {
+    processChildNode(newNode);
+    return currentOriginalInsertBefore(newNode, referenceNode);
+  };
+}
 
-      if (node.classList.contains("tw-title")) {
-        console.log(node.parentElement.href);
-      }
+async function processChildNode(child) {
+  const messageBody = child.querySelector(
+    '[data-a-target="chat-line-message-body"]'
+  );
+  if (!messageBody) return;
+
+  const processedContent = processChatMessage(messageBody);
+
+  // Use requestAnimationFrame to batch DOM updates
+  if (processedContent instanceof DocumentFragment) {
+    requestAnimationFrame(() => {
+      // Use replaceChildren or append in one go
+      messageBody.replaceChildren(processedContent);
     });
+  }
+}
 
-    await Promise.all(promises);
-  };
+// MutationSummary callback function to detect chat container mutations
+async function onChatMutation(summaries) {
+  const [summary] = summaries;
+  const chatContainerRemoved = summary.removed.length > 0;
+  const chatContainerAdded = summary.added.length > 0;
 
-  const startObserving = () => {
-    const targetNode = document.querySelector(
-      ".channel-root__right-column.channel-root__right-column--expanded"
-    );
+  if (chatContainerRemoved) {
+    console.log("Chat container removed, waiting for a new one...");
+    currentMessageContainer = null;
+    currentOriginalAppendChild = null; // Free memory
+    currentOriginalInsertBefore = null; // Free memory
+    lastProcessedMessageId = null; // Reset processed message ID
+  }
 
-    if (targetNode) {
-      // Use mutation-summary to watch for added chat messages
-      const ms = new MutationSummary({
-        callback: processMutations, // Callback to handle mutations
-        queries: [
-          { element: `[data-a-target="chat-line-message-body"]` },
-          { element: "h1.tw-title" },
-        ], // Only track added chat lines and the parent of the username
-      });
+  if (chatContainerAdded || !currentMessageContainer) {
+    requestAnimationFrame(findAndOverrideChat);
+    const currentUsername = matchChannelName(window.location.href);
 
-      console.log("Observer started on target node.");
-
-      // Process mutations
-      function processMutations(summaries) {
-        const addedChatLines = summaries[0].added;
-        const addedStreamInfo = summaries[1].added;
-
-        addedChatLines.forEach((chatLine) => {
-          // Process chat lines here
-          processChatMessage(chatLine);
-        });
-
-        addedStreamInfo.forEach((titleElement) => {
-          // Call the function to find and process the title element
-          if (
-            titleElement &&
-            titleElement.parentElement &&
-            titleElement.parentElement.href
-          ) {
-            urlChangeHandler(titleElement.parentElement.href.split("/").pop());
-          }
-        });
-      }
-    } else {
-      console.log("Target node not found, checking again in 1000ms...");
+    if (currentUsername) {
+      const data = await getTwitchUserId(currentUsername);
+      await loadEmotes({ id: data.id, username: data.username });
     }
-  };
+  }
+}
+// Initialize the chat override process with mutation-summary
+function initializeChatOverride() {
+  // Configure mutation-summary to watch for added/removed chat containers
+  new MutationSummary({
+    callback: onChatMutation,
+    queries: [{ element: ".chat-scrollable-area__message-container" }],
+  });
 
-  const intervalId = setInterval(() => {
-    const targetNode = document.querySelector(
-      ".channel-root__right-column.channel-root__right-column--expanded"
-    );
+  manageEventListeners();
 
-    if (targetNode) {
-      clearInterval(intervalId); // Stop checking once the target node is found
-      startObserving(); // Start observing the target node
+  findAndOverrideChat(); // Find and override the initial chat container
+}
+
+// Cleanup helper to remove references and stop observing mutations
+function cleanup() {
+  window.removeEventListener("unload", cleanup);
+  document.removeEventListener("DOMContentLoaded", initializeChatOverride);
+
+  if (currentMessageContainer) {
+    if (currentOriginalAppendChild) {
+      currentMessageContainer.appendChild = currentOriginalAppendChild; // Reset to original
     }
-  }, 1000); // Check every 1 second
-};
+    if (currentOriginalInsertBefore) {
+      currentMessageContainer.insertBefore = currentOriginalInsertBefore; // Reset to original
+    }
+  }
+
+  // Nullify all references for garbage collection
+  currentMessageContainer = null;
+  currentOriginalAppendChild = null;
+  currentOriginalInsertBefore = null;
+  lastProcessedMessageId = null; // Clear memory references
+}
 
 const addModifierStyles = async () => {
   const style = document.createElement("style");
   style.textContent = `
-      .modifier-container {
-        display: unset; /* Remove inherited display properties */
-        display: inline-grid; /* Use grid for stacking */
-        justify-items: center; /* Center items horizontally */
-      }
+    .modifier-container {
+      display: unset; /* Remove inherited display properties */
+      display: inline-grid; /* Use grid for stacking */
+      justify-items: center; /* Center items horizontally */
+    }
 
-      .chat-line__no-background * {
-        align-items: center;
-        vertical-align: middle;
-      }
+    .chat-line__no-background * {
+      align-items: center;
+      vertical-align: middle;
+    }
 
-      .modifier {
-        z-index: 1;
-      }
+    .modifier {
+      z-index: 1;
+    }
 
-      .modifier-container img {
-        grid-area: 1 / 1; /* Stack all images in the same grid area */
-        width: min-content; /* Make images fill the container width */
-        height: min-content; /* Maintain aspect ratio */
-      }
-      
-      
-      .emote-tooltip {
-        position: absolute;
-        background-color: rgba(0, 0, 0, 0.5); /* 50% transparent black */
-        color: white;
-        padding: 5px; /* Add some padding around the tooltip */
-        border-radius: 4px;
-        font-size: 12px;
-        pointer-events: none; /* Make sure the tooltip doesn't interfere with mouse events */
-        z-index: 1000;
-        text-align: center; /* Center the text */
-      }
+    .modifier-container img {
+      grid-area: 1 / 1; /* Stack all images in the same grid area */
+      width: min-content; /* Make images fill the container width */
+      height: min-content; /* Maintain aspect ratio */
+    }
 
-      .emote-preview img {
-        padding: 5px; /* Add padding around the image */
-      }
+    .emote-tooltip {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.5); /* 50% transparent black */
+      color: white;
+      padding: 5px; /* Add some padding around the tooltip */
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none; /* Make sure the tooltip doesn't interfere with mouse events */
+      z-index: 1000;
+      text-align: center; /* Center the text */
+    }
 
-      .emote-info {
-        margin-top: 5px;
-      }
+    .emote-preview img {
+      padding: 5px; /* Add padding around the image */
+    }
 
-      .emote-name, .emote-service {
-        display: block;
-        font-size: 16px;
-      }
+    .emote-info {
+      margin-top: 5px;
+    }
 
-      .emote-service {
-        font-size: 13px;
-        color: #ccc; /* Light gray for the service name */
-      }`;
+    .emote-name, .emote-service {
+      display: block;
+      font-size: 16px;
+    }
+
+    .emote-service {
+      font-size: 13px;
+      color: #ccc; /* Light gray for the service name */
+    }`;
 
   // Append the style element to the document head
   document.head.appendChild(style);
 };
 
-const manageEventListeners = () => {
-  const root = document.querySelector(".root");
-
-  let tooltip = null;
-  let isTooltipActive = false;
-
-  root.addEventListener("mouseover", (event) => {
-    const emoteElement = event.target.closest(".simple-emote-extension");
-    if (!emoteElement) return;
-
-    const modifierContainer = emoteElement.closest(".modifier-container");
-    const emotes = modifierContainer
-      ? Array.from(
-          modifierContainer.querySelectorAll(".simple-emote-extension")
-        )
-      : [emoteElement];
-
-    // If a tooltip already exists, remove it before creating a new one
-    if (tooltip) {
-      tooltip.remove();
-      tooltip = null;
+// Throttling function to optimize event listeners
+const throttle = (func, limit) => {
+  let lastFunc;
+  let lastRan;
+  return function () {
+    const context = this;
+    const args = arguments;
+    if (!lastRan) {
+      func.apply(context, args);
+      lastRan = Date.now();
+    } else {
+      clearTimeout(lastFunc);
+      lastFunc = setTimeout(function () {
+        if (Date.now() - lastRan >= limit) {
+          func.apply(context, args);
+          lastRan = Date.now();
+        }
+      }, limit - (Date.now() - lastRan));
     }
+  };
+};
 
-    tooltip = document.createElement("div");
-    tooltip.classList.add("emote-tooltip");
-    document.body.appendChild(tooltip);
+// Manage event listeners efficiently
+const manageEventListeners = () => {
+  const root = document.querySelector("#root");
 
-    emotes.forEach((emote) => {
-      const emoteInfo = getEmote(emote.getAttribute("alt"));
-      const emoteContent = document.createElement("div");
-      emoteContent.classList.add("emote-content");
+  // Check if the event listeners have already been added
+  if (!root.dataset.eventListenersAdded) {
+    let tooltip = null;
+    let isTooltipActive = false;
 
-      const emotePreview = document.createElement("div");
-      emotePreview.classList.add("emote-preview");
-      const emoteImg = document.createElement("img");
-      emoteImg.src = emoteInfo.bigUrl;
-      emoteImg.alt = emoteInfo.name;
-      emotePreview.appendChild(emoteImg);
-
-      const emoteInfoDiv = document.createElement("div");
-      emoteInfoDiv.classList.add("emote-info");
-      const emoteNameDiv = document.createElement("div");
-      emoteNameDiv.classList.add("emote-name");
-      emoteNameDiv.textContent = emoteInfo.name;
-
-      const emoteServiceDiv = document.createElement("div");
-      emoteServiceDiv.classList.add("emote-service");
-      emoteServiceDiv.textContent = emoteInfo.service.toUpperCase();
-
-      emoteInfoDiv.appendChild(emoteNameDiv);
-      emoteInfoDiv.appendChild(emoteServiceDiv);
-      emoteContent.appendChild(emotePreview);
-      emoteContent.appendChild(emoteInfoDiv);
-
-      tooltip.appendChild(emoteContent);
-    });
-
-    const updateTooltipPosition = (e) => {
-      if (!tooltip) return; // Check if tooltip still exists
-      const tooltipRect = tooltip.getBoundingClientRect();
-      tooltip.style.left = `${Math.min(
-        window.innerWidth - tooltipRect.width - 10,
-        e.clientX
-      )}px`;
-      tooltip.style.top = `${Math.min(
-        window.innerHeight - tooltipRect.height,
-        e.clientY
-      )}px`;
-    };
-
-    updateTooltipPosition(event);
-    isTooltipActive = true;
-
-    const mouseMoveHandler = (e) => {
-      if (isTooltipActive) {
-        updateTooltipPosition(e);
-      } else {
-        document.removeEventListener("mousemove", mouseMoveHandler);
+    const throttledMouseMove = throttle((e) => {
+      if (isTooltipActive && tooltip) {
+        const tooltipRect = tooltip.getBoundingClientRect();
+        tooltip.style.left = `${Math.min(
+          window.innerWidth - tooltipRect.width - 10,
+          e.clientX
+        )}px`;
+        tooltip.style.top = `${Math.min(
+          window.innerHeight - tooltipRect.height,
+          e.clientY
+        )}px`;
       }
-    };
+    }, 16); // Approx 60fps
 
-    document.addEventListener("mousemove", mouseMoveHandler);
+    root.addEventListener("mouseover", (event) => {
+      const emoteElement = event.target.closest(".simple-emote-extension");
+      if (!emoteElement) return;
 
-    // Tooltip removal logic
-    const removeTooltip = () => {
+      const modifierContainer = emoteElement.closest(".modifier-container");
+      const emotes = modifierContainer
+        ? Array.from(
+            modifierContainer.querySelectorAll(".simple-emote-extension")
+          )
+        : [emoteElement];
+
+      // If a tooltip already exists, remove it before creating a new one
       if (tooltip) {
         tooltip.remove();
         tooltip = null;
       }
-      isTooltipActive = false;
-      document.removeEventListener("mousemove", mouseMoveHandler);
-    };
 
-    const handleMouseLeave = () => {
-      removeTooltip();
-    };
+      tooltip = document.createElement("div");
+      tooltip.classList.add("emote-tooltip");
+      document.body.appendChild(tooltip);
 
-    emoteElement.addEventListener("mouseleave", handleMouseLeave, {
-      once: true,
+      emotes.forEach((emote) => {
+        const emoteInfo = getEmote(emote.getAttribute("alt"));
+        const emoteContent = document.createElement("div");
+        emoteContent.classList.add("emote-content");
+
+        const emotePreview = document.createElement("div");
+        emotePreview.classList.add("emote-preview");
+        const emoteImg = document.createElement("img");
+        emoteImg.src = emoteInfo.bigUrl;
+        emoteImg.alt = emoteInfo.name;
+        emotePreview.appendChild(emoteImg);
+
+        const emoteInfoDiv = document.createElement("div");
+        emoteInfoDiv.classList.add("emote-info");
+        const emoteNameDiv = document.createElement("div");
+        emoteNameDiv.classList.add("emote-name");
+        emoteNameDiv.textContent = emoteInfo.name;
+
+        const emoteServiceDiv = document.createElement("div");
+        emoteServiceDiv.classList.add("emote-service");
+        emoteServiceDiv.textContent = emoteInfo.service.toUpperCase();
+
+        emoteInfoDiv.appendChild(emoteNameDiv);
+        emoteInfoDiv.appendChild(emoteServiceDiv);
+        emoteContent.appendChild(emotePreview);
+        emoteContent.appendChild(emoteInfoDiv);
+
+        tooltip.appendChild(emoteContent);
+      });
+
+      // Add throttled mouse move for tooltip positioning
+      document.addEventListener("mousemove", throttledMouseMove);
+
+      const removeTooltip = () => {
+        if (tooltip) {
+          tooltip.remove();
+          tooltip = null;
+          document.removeEventListener("mousemove", throttledMouseMove);
+        }
+        isTooltipActive = false;
+      };
+
+      // Tooltip removal logic
+      const handleMouseLeave = () => {
+        removeTooltip();
+      };
+
+      emoteElement.addEventListener("mouseleave", handleMouseLeave, {
+        once: true,
+      });
+
+      document.addEventListener(
+        "mousemove",
+        (e) => {
+          if (!isTooltipActive) return;
+          // Check if the mouse has moved significantly far from the emote
+          const distanceX = Math.abs(
+            e.clientX - emoteElement.getBoundingClientRect().left
+          );
+          const distanceY = Math.abs(
+            e.clientY - emoteElement.getBoundingClientRect().top
+          );
+          const maxDistance = 100; // Adjust this threshold as needed
+
+          if (distanceX > maxDistance || distanceY > maxDistance) {
+            handleMouseLeave();
+          }
+        },
+        { once: true }
+      );
+
+      isTooltipActive = true;
     });
 
-    document.addEventListener(
-      "mousemove",
-      (e) => {
-        if (!isTooltipActive) return;
-        // Check if the mouse has moved significantly far from the emote
-        const distanceX = Math.abs(
-          e.clientX - emoteElement.getBoundingClientRect().left
-        );
-        const distanceY = Math.abs(
-          e.clientY - emoteElement.getBoundingClientRect().top
-        );
-        const maxDistance = 100; // Adjust this threshold as needed
-
-        if (distanceX > maxDistance || distanceY > maxDistance) {
-          handleMouseLeave();
-        }
-      },  
-      { once: true }
-    );
-  });
+    // Mark that event listeners have been added
+    root.dataset.eventListenersAdded = true;
+  }
 };
 
-export {
-  setupChatObserver,
-  processChatMessage,
-  manageEventListeners,
-  addModifierStyles,
-};
+// Start the process when the document is ready
+window.addEventListener("unload", cleanup);
+
+export { initializeChatOverride, manageEventListeners, addModifierStyles };

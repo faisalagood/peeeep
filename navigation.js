@@ -49,12 +49,16 @@ function matchChannelName(url) {
 //   });
 // }
 
+const setUsername = (newUsername) => {
+  if (newUsername) currentUsername = newUsername
+}
+
 const urlChangeHandler = async (newUsername) => {
   // Check if the username has actually changed
 
   if (newUsername !== currentUsername) {
     if (navDebug) {
-      console.info("URL changed, loading emotes for new user:", newUsername);
+      console.info("URL changed, the channel is now:", newUsername);
     }
 
     currentUsername = newUsername; // Update the current username
@@ -62,11 +66,7 @@ const urlChangeHandler = async (newUsername) => {
     const data = await getTwitchUserId(newUsername);
     await initializeEmotes();
     await loadEmotes({ id: data.id, username: data.username });
-  } else {
-    if (navDebug) {
-      console.info("URL did not change, skipping emote loading.");
-    }
   }
 };
 
-export { matchChannelName, urlChangeHandler };
+export { matchChannelName, urlChangeHandler, setUsername };

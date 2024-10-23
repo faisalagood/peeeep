@@ -2,24 +2,25 @@ import { getTwitchUserId } from "./lib.js";
 
 import { loadEmotes, initializeEmotes } from "./emotes.js";
 
+import { setUsername } from "./navigation.js";
+
 import {
-  setupChatObserver,
   addModifierStyles,
-  manageEventListeners,
+  initializeChatOverride,
 } from "./dom2.js";
 
 import { matchChannelName } from "./navigation.js";
 
 
-setupChatObserver();
+initializeChatOverride();
 
 async function main() {
   await addModifierStyles();
   await initializeEmotes();
-  manageEventListeners();
   const currentUsername = matchChannelName(window.location.href);
 
   if (currentUsername) {
+    setUsername(currentUsername);
     const data = await getTwitchUserId(currentUsername);
     await loadEmotes({ id: data.id, username: data.username });
   }
