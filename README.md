@@ -1,45 +1,72 @@
-## <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP"> Simple Emote Extension <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP">
+# <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP"> PEEEEP <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP">
 
-Simple Emote Extension is a browser extension that enhances your Twitch viewing experience by adding support for third-party emotes.
+**PEEEEP** is a browser extension that enhances your Twitch viewing experience by integrating third-party emotes directly into Twitch chat.
 
 ## Features
 
-- Displays third-party emotes in Twitch chat. (7TV, FFZ, BTTV)
-- Shows tooltips with emote information on hover (including emote name, source, and preview).
-- Only supports modifier emotes from 7TV. (For now)
-- Firefox doesn't work, support removed temporarily. <img src="https://cdn.frankerfacez.com/emote/425196/1" alt="Sadge">
+- 🖼 **Support for Third-Party Emotes**: Displays emotes from 7TV, FrankerFaceZ (FFZ), and BetterTTV (BTTV) in Twitch chat.
+- 🔍 **Emote Tooltips on Hover**: See emote information when hovering over an emote, including emote name, source, and a preview.
+- 🎨 **7TV Modifier Emote Support**: Limited support for emote modifiers (currently only from 7TV).
+- ⚠️ **Note**: Firefox support is temporarily removed due to compatibility issues <img src="https://cdn.frankerfacez.com/emote/425196/1" alt="Sadge">
 
 ## Installation
 
-1. **Clone this repository**
+### Prerequisites
+
+- Ensure you have **Node.js** and **npm** installed for building the extension from source.
+
+### Steps
+
+1. **Clone this repository**:
 
    ```bash
-   git clone https://github.com/faisalagood/simple-emote-extension.git
+   git clone https://github.com/faisalagood/peeeep.git
+   cd peeeep
    ```
-   
-2. **Load the extension in your browser:**
 
-### Chrome:
+2. **Install dependencies**:
 
-- Navigate to `chrome://extensions/`.
-- Enable **Developer mode** in the top right corner.
-- Click **Load unpacked** and select the **ROOT** directory from the extension's source code.
+   ```bash
+   npm install
+   ```
+
+3. **Build the extension**:
+
+   ```bash
+   npm run build
+   ```
+
+4. **Load the extension in Chrome**:
+
+   - Go to `chrome://extensions/`.
+   - Enable **Developer mode** in the top right corner.
+   - Click **Load unpacked** and select the project’s root directory.
+
+   The extension will now be installed in your browser!
 
 ## Usage
 
-Once the extension is installed, simply navigate to any Twitch channel. The extension will automatically load and display supported emotes in the chat. Hover over an emote to see its tooltip with details such as emote name, source, and a larger preview.
+1. After installing, navigate to any Twitch channel to automatically load supported emotes in chat.
+2. Hover over any emote to see its tooltip, displaying details like emote name, source, and a preview image.
 
 ## Development
 
 To contribute or make modifications:
 
-1. Clone the repository and make your changes.
-2. Ensure you run the following command:
+1. **Clone the repository** if you haven’t already.
+2. **Make your changes** in the source files.
+3. **Rebuild the extension**:
 
- ```bash
- npm run build
- ```
-3. Reload the extension in your browser as outlined in the **Installation** section.
+   ```bash
+   npm run build
+   ```
+
+4. **Reload the extension** in your browser as outlined in the installation steps.
+
+## Troubleshooting
+
+- **Firefox**: Support for Firefox is temporarily paused; stay tuned for future updates!
+- **Other Issues**: Feel free to [open an issue](https://github.com/faisalagood/peeeep/issues) if you encounter any bugs or need help.
 
 ## License
 

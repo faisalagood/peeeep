@@ -1,29 +1,96 @@
-import { getTwitchUserId } from "./lib.js";
+import { OptimizedObserver } from "./lib/observer.js";
+import { ChannelHandler } from "./lib/navigation.js";
+import { initializeEmotes } from "./lib/emotes.js";
+import { ChatProcessor } from "./lib/processor.js";
+import { Tooltip } from "./lib/tooltip.js";
+import { addStyles } from "./lib/styles.js";
 
-import { loadEmotes, initializeEmotes } from "./emotes.js";
+// Debug mode setting
+const DEBUG = true;
 
-import { setUsername } from "./navigation.js";
+// Current Channel Name FIX LATER
 
-import {
-  addModifierStyles,
-  initializeChatOverride,
-} from "./dom2.js";
+let currentChannel = "";
 
-import { matchChannelName } from "./navigation.js";
+// Create chat processor instance
+const chatProcessor = new ChatProcessor();
 
+// Create Channel Handler
 
-initializeChatOverride();
+const channelHandler = new ChannelHandler();
 
-async function main() {
-  await addModifierStyles();
-  await initializeEmotes();
-  const currentUsername = matchChannelName(window.location.href);
+// Process chat message body
+const processChatMessage = (element) => {
+  chatProcessor.process(element);
+};
 
-  if (currentUsername) {
-    setUsername(currentUsername);
-    const data = await getTwitchUserId(currentUsername);
-    await loadEmotes({ id: data.id, username: data.username });
+// Process channel title
+const processChannelTitle = async () => {
+  const username = channelHandler.matchChannelName(window.location.href);
+  if (username && currentChannel !== username) {
+    currentChannel = username;
+    await channelHandler.urlChangeHandler(username);
   }
-}
+};
 
-main().catch(console.error);
+// Create observer instance
+const observer = new OptimizedObserver(
+  (element) => {
+    if (element.matches('[data-a-target="chat-line-message-body"]')) {
+      processChatMessage(element);
+    } else if (element.matches("h1.tw-title")) {
+      processChannelTitle(element);
+    }
+  },
+  {
+    containerAttribute: "data-observer-root",
+    targets: [
+      {
+        type: "selector",
+        value: `[data-a-target="chat-line-message-body"]`,
+      },
+      {
+        type: "selector",
+        value: "h1.tw-title",
+      },
+    ],
+    batchSize: 10,
+  }
+);
+
+// Set up initial observer
+const setupObserver = async () => {
+  // Add styles first
+  addStyles();
+
+  // Initialize emotes
+  await initializeEmotes();
+
+  // Setup tooltips
+  new Tooltip();
+
+  // Add the observer root attribute to document.body
+  document.body.setAttribute("data-observer-root", "");
+
+  // Process initial channel if we're on a channel page
+  const username = channelHandler.matchChannelName(window.location.href);
+  if (username) {
+    await channelHandler.urlChangeHandler(username);
+  }
+
+  if (DEBUG) {
+    console.info("Observer setup complete");
+  }
+};
+
+setupObserver();
+
+// Disconnect observer when window is closing
+window.addEventListener("unload", () => {
+  if (observer) {
+    observer.disconnect();
+    if (DEBUG) {
+      console.info("Observer disconnected on window close");
+    }
+  }
+});
