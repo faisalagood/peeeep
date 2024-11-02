@@ -1,10 +1,10 @@
-const path = require("path");
+import path from "path";
 
-module.exports = {
+export default {
   entry: "./main.js",
   output: {
     filename: "bundle.js",
-    path: path.resolve(__dirname),
+    path: path.resolve("dist"),
     libraryTarget: "module",
   },
   experiments: {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Simple Emote Extension",
-  "version": "0.0.2",
+  "name": "PEEEEP",
+  "version": "0.0.3",
   "description": "Make Twitch Chat Readable Again",
   "permissions": ["activeTab", "scripting"],
   "host_permissions": ["https://*.twitch.tv/*"],
@@ -12,7 +12,7 @@
     {
       "all_frames": true,
       "matches": ["https://www.twitch.tv/*"],
-      "js": ["./bundle.js"],
+      "js": ["./dist/bundle.js"],
       "run_at": "document_end",
       "world": "MAIN"
     }
