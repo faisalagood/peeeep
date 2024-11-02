@@ -1,4 +1,4 @@
-# <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP"> PEEEEP <img src="https://cdn.betterttv.net/emote/6290de703c6f14b68848d91b/1x" alt="PEEEEP">
+<img src="https://i.imgur.com/ZLzqKmy.png" alt="PEEEEP">
 
 **PEEEEP** is a browser extension that enhances your Twitch viewing experience by integrating third-party emotes directly into Twitch chat.
 
