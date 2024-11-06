@@ -1,6 +1,6 @@
 {
   "name": "peeeep",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A really simple emote extension for Twitch.",
   "main": "bundle.js",
   "type": "module",
