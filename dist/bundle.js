@@ -126,7 +126,7 @@ __webpack_require__.r(__webpack_exports__);
          targetMap.set(emote.name, {
            name: emote.name,
            url,
-           bigUrl: `https:${emote.data.host.url}/3x.webp`,
+           bigUrl: `https:${emote.data.host.url}/4x.webp`,
            width: file.width,
            height: file.height,
            modifier,
@@ -460,6 +460,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   OptimizedObserver: () => (/* binding */ OptimizedObserver)
 /* harmony export */ });
 class OptimizedObserver {
+  static IGNORED_TAGS = new Set(['BR', 'HEAD', 'LINK', 'META', 'SCRIPT', 'STYLE']);
+
   constructor(processCallback, options = {}) {
     if (typeof processCallback !== "function") {
       throw new Error("Process callback is required");
@@ -472,8 +474,8 @@ class OptimizedObserver {
     this.initialObserver = null;
     this.container = null;
     
-    // Initialize observer if container exists
-    const container = document.querySelector(`[${this.containerAttr}]`);
+    const container = document.getElementById(this.containerAttr) || 
+                     document.querySelector(`[${this.containerAttr}]`);
     if (container) {
       this.init(container);
     } else {
@@ -482,21 +484,24 @@ class OptimizedObserver {
   }
 
   normalizeTargets(targets) {
-    return targets.map((target) => {
+    const normalizedTargets = new Array(targets.length);
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i];
       if (typeof target === "string") {
-        return {
+        normalizedTargets[i] = {
           type: "attribute",
           value: target,
           matches: (element) => element.hasAttribute(target)
         };
+      } else {
+        normalizedTargets[i] = {
+          type: target.type || "attribute",
+          value: target.value,
+          matches: this.createMatcher(target)
+        };
       }
-      
-      return {
-        type: target.type || "attribute",
-        value: target.value,
-        matches: this.createMatcher(target)
-      };
-    });
+    }
+    return normalizedTargets;
   }
 
   createMatcher(target) {
@@ -505,6 +510,8 @@ class OptimizedObserver {
         return (element) => element.hasAttribute(target.value);
       case "class":
         return (element) => element.classList.contains(target.value);
+      case "id":
+        return (element) => element.id === target.value;
       case "selector":
         return (element) => element.matches(target.value);
       default:
@@ -513,43 +520,48 @@ class OptimizedObserver {
   }
 
   elementMatchesAnyTarget(element) {
-    for (let i = 0; i < this.targets.length; i++) {
+    if (OptimizedObserver.IGNORED_TAGS.has(element.tagName)) {
+      return false;
+    }
+    
+    const len = this.targets.length;
+    for (let i = 0; i < len; i++) {
       if (this.targets[i].matches(element)) return true;
     }
     return false;
   }
 
   getAttributeFilters() {
-    return this.targets
-      .filter(target => target.type === "attribute")
-      .map(target => target.value);
+    const filters = [];
+    const len = this.targets.length;
+    for (let i = 0; i < len; i++) {
+      if (this.targets[i].type === "attribute") {
+        filters.push(this.targets[i].value);
+      }
+    }
+    return filters;
   }
 
   setupInitialObserver() {
-    // Cleanup any existing initial observer
     if (this.initialObserver) {
       this.initialObserver.disconnect();
     }
 
     this.initialObserver = new MutationObserver((mutations, observer) => {
-      for (const mutation of mutations) {
-        if (mutation.type === "childList") {
-          const container = document.querySelector(`[${this.containerAttr}]`);
-          if (container) {
-            observer.disconnect();
-            this.initialObserver = null;
-            this.init(container);
-            break;
-          }
-        } else if (mutation.type === "attributes" && 
-                   mutation.attributeName === this.containerAttr) {
-          const container = document.querySelector(`[${this.containerAttr}]`);
-          if (container) {
-            observer.disconnect();
-            this.initialObserver = null;
-            this.init(container);
-            break;
-          }
+      const len = mutations.length;
+      for (let i = 0; i < len; i++) {
+        const mutation = mutations[i];
+        const container = mutation.type === "childList" ? 
+          document.getElementById(this.containerAttr) || document.querySelector(`[${this.containerAttr}]`) :
+          (mutation.type === "attributes" && 
+           mutation.attributeName === this.containerAttr ? 
+           mutation.target : null);
+
+        if (container) {
+          observer.disconnect();
+          this.initialObserver = null;
+          this.init(container);
+          break;
         }
       }
     });
@@ -564,34 +576,80 @@ class OptimizedObserver {
 
   processExistingElements(container) {
     const elements = new Set();
+    const targetsLen = this.targets.length;
     
-    this.targets.forEach(target => {
+    for (let i = 0; i < targetsLen; i++) {
+      const target = this.targets[i];
+      let foundElements;
+      
       if (target.type === "selector") {
-        container.querySelectorAll(target.value).forEach(element => {
-          elements.add(element);
-        });
+        foundElements = container.querySelectorAll(target.value);
+      } else if (target.type === "id") {
+        const element = document.getElementById(target.value);
+        foundElements = element ? [element] : [];
+      } else if (target.type === "class") {
+        foundElements = container.getElementsByClassName(target.value);
       } else {
-        container
-          .querySelectorAll(`[${target.value}], .${target.value}`)
-          .forEach(element => {
-            if (this.elementMatchesAnyTarget(element)) {
-              elements.add(element);
-            }
-          });
+        foundElements = container.querySelectorAll(`[${target.value}]`);
       }
-    });
+
+      const elementsLen = foundElements.length;
+      for (let j = 0; j < elementsLen; j++) {
+        const element = foundElements[j];
+        if (!OptimizedObserver.IGNORED_TAGS.has(element.tagName) && 
+            this.elementMatchesAnyTarget(element)) {
+          elements.add(element);
+        }
+      }
+    }
 
     if (elements.size) {
-      elements.forEach(element => {
+      for (const element of elements) {
         try {
           this.process(element);
         } catch (e) {
           console.error("Error processing element:", e);
         }
-      });
+      }
     }
 
     return elements.size > 0;
+  }
+
+  processAddedNode(node, elements) {
+    if (node.nodeType === Node.ELEMENT_NODE && 
+        !OptimizedObserver.IGNORED_TAGS.has(node.tagName)) {
+      
+      if (this.elementMatchesAnyTarget(node)) {
+        elements.add(node);
+      }
+
+      const targetsLen = this.targets.length;
+      for (let i = 0; i < targetsLen; i++) {
+        const target = this.targets[i];
+        let foundElements;
+        
+        if (target.type === "id") {
+          const element = document.getElementById(target.value);
+          foundElements = element ? [element] : [];
+        } else if (target.type === "class") {
+          foundElements = node.getElementsByClassName(target.value);
+        } else if (target.type === "selector") {
+          foundElements = node.querySelectorAll(target.value);
+        } else {
+          foundElements = node.querySelectorAll(`[${target.value}]`);
+        }
+
+        const elementsLen = foundElements.length;
+        for (let j = 0; j < elementsLen; j++) {
+          const element = foundElements[j];
+          if (!OptimizedObserver.IGNORED_TAGS.has(element.tagName) && 
+              this.elementMatchesAnyTarget(element)) {
+            elements.add(element);
+          }
+        }
+      }
+    }
   }
 
   init(container) {
@@ -600,53 +658,35 @@ class OptimizedObserver {
     }
 
     this.container = container;
-    
-    // Process existing elements
     this.processExistingElements(container);
 
-    // Set up the main observer
     this.observer = new MutationObserver(mutations => {
       const elements = new Set();
+      const mutationsLen = mutations.length;
 
-      for (const mutation of mutations) {
+      for (let i = 0; i < mutationsLen; i++) {
+        const mutation = mutations[i];
         if (mutation.type === "childList") {
-          mutation.addedNodes.forEach(node => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              if (this.elementMatchesAnyTarget(node)) {
-                elements.add(node);
-              }
-
-              // Check children
-              this.targets.forEach(target => {
-                if (target.type === "selector") {
-                  node.querySelectorAll(target.value)
-                    .forEach(element => elements.add(element));
-                } else {
-                  node.querySelectorAll(`[${target.value}], .${target.value}`)
-                    .forEach(element => {
-                      if (this.elementMatchesAnyTarget(element)) {
-                        elements.add(element);
-                      }
-                    });
-                }
-              });
-            }
-          });
+          const nodesLen = mutation.addedNodes.length;
+          for (let j = 0; j < nodesLen; j++) {
+            this.processAddedNode(mutation.addedNodes[j], elements);
+          }
         } else if (mutation.type === "attributes" || mutation.type === "class") {
-          if (this.elementMatchesAnyTarget(mutation.target)) {
+          if (!OptimizedObserver.IGNORED_TAGS.has(mutation.target.tagName) && 
+              this.elementMatchesAnyTarget(mutation.target)) {
             elements.add(mutation.target);
           }
         }
       }
 
       if (elements.size) {
-        elements.forEach(element => {
+        for (const element of elements) {
           try {
             this.process(element);
           } catch (e) {
             console.error("Error processing element:", e);
           }
-        });
+        }
       }
     });
 
@@ -671,7 +711,6 @@ class OptimizedObserver {
       this.observer = null;
     }
 
-    // Clear references
     this.container = null;
     this.process = null;
     this.targets = [];
@@ -848,6 +887,7 @@ const tooltipStyles = `
     display: inline-grid;
     justify-items: center;
     align-items: center;
+    vertical-align: middle;
   }
 
   .modifier-container img {
@@ -889,6 +929,7 @@ const tooltipStyles = `
     background: rgba(0, 0, 0, 0.2);
     border-radius: 6px 6px 0 0;
     user-select: none;
+    vertical-align: middle;
   }
 
   .tooltip-drag-handle {
@@ -901,15 +942,35 @@ const tooltipStyles = `
 
   .tooltip-close {
     cursor: pointer;
-    padding: 0 8px;
+    padding: 8px 12px;  /* Increased padding */
+    margin: -8px -12px; /* Negative margin to offset padding */
     font-size: 18px;
     color: #888;
     transition: color 0.2s;
     user-select: none;
+    position: relative;  /* For pseudo-element positioning */
+    vertical-align: middle;
+  }
+
+  .tooltip-close::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    margin: -5px;
+    vertical-align: middle;
   }
 
   .tooltip-close:hover {
-    color: #fff;
+    color: red;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tooltip-close {
+      transition: none;
+    }
   }
 
   .tooltip-content {

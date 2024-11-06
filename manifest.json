@@ -3,7 +3,6 @@
   "name": "PEEEEP",
   "version": "0.0.3",
   "description": "Make Twitch Chat Readable Again",
-  "permissions": ["activeTab", "scripting"],
   "host_permissions": ["https://*.twitch.tv/*"],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self';"
