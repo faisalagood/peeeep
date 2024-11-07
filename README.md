@@ -5,11 +5,18 @@
 ## Features
 
 - 🖼 **Support for Third-Party Emotes**: Displays emotes from 7TV, FrankerFaceZ (FFZ), and BetterTTV (BTTV) in Twitch chat.
-- 🔍 **Emote Tooltips on Hover**: See emote information when hovering over an emote, including emote name, source, and a preview.
+- 🔍 **Emote Tooltips on Hover**: See emote information when you click an emote, including emote name, source, and a larger version.
 - 🎨 **7TV Modifier Emote Support**: Limited support for emote modifiers (currently only from 7TV).
 - ⚠️ **Note**: Firefox support is temporarily removed due to compatibility issues <img src="https://cdn.frankerfacez.com/emote/425196/1" alt="Sadge">
 
 ## Installation
+
+### Chrome Web Store (Recommended)
+1. Visit [PEEEEP on the Chrome Web Store](https://chromewebstore.google.com/detail/PEEEEP/jcpmcidfnegbeommcjdjelbfpcindkfb)
+2. Click "Add to Chrome"
+3. The extension will automatically install and be ready to use!
+
+## Building from Source
 
 ### Prerequisites
 
@@ -47,7 +54,7 @@
 ## Usage
 
 1. After installing, navigate to any Twitch channel to automatically load supported emotes in chat.
-2. Hover over any emote to see its tooltip, displaying details like emote name, source, and a preview image.
+2. Click on any emote to see its tooltip, displaying details like emote name, source, and a preview image.
 
 ## Development
 
