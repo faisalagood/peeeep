@@ -1,96 +1,52 @@
-import { OptimizedObserver } from "./lib/observer.js";
-import { ChannelHandler } from "./lib/navigation.js";
-import { initializeEmotes } from "./lib/emotes.js";
-import { ChatProcessor } from "./lib/processor.js";
-import { Tooltip } from "./lib/tooltip.js";
-import { addStyles } from "./lib/styles.js";
+import { ChannelManager } from "./lib/navigation.js";
+import { TooltipManager } from "./lib/tooltip.js";
+import { StyleManager } from "./lib/styles.js";
+import { ChatManager } from "./lib/chat.js";
+import { EmoteAutocomplete } from "./lib/input.js";
+import { ReactStuff } from "./junk/react.js";
 
-// Debug mode setting
-const DEBUG = true;
+const channelManager = new ChannelManager();
 
-// Current Channel Name FIX LATER
+console.log("[PEEEEP] Starting initialization at", window.location.href);
 
-let currentChannel = "";
-
-// Create chat processor instance
-const chatProcessor = new ChatProcessor();
-
-// Create Channel Handler
-
-const channelHandler = new ChannelHandler();
-
-// Process chat message body
-const processChatMessage = (element) => {
-  chatProcessor.process(element);
-};
-
-// Process channel title
-const processChannelTitle = async () => {
-  const username = channelHandler.matchChannelName(window.location.href);
-  if (username && currentChannel !== username) {
-    currentChannel = username;
-    await channelHandler.urlChangeHandler(username);
-  }
-};
-
-// Create observer instance
-const observer = new OptimizedObserver(
-  (element) => {
-    if (element.matches('[data-a-target="chat-line-message-body"]')) {
-      processChatMessage(element);
-    } else if (element.matches("h1.tw-title")) {
-      processChannelTitle(element);
+const initializeManagers = async () => {
+  try {
+    if (!channelManager.shouldInitialize(window.location.href)) {
+      console.log("[PEEEEP] Blocked subdomain detected, stopping initialization");
+      return;
     }
-  },
-  {
-    containerAttribute: "data-observer-root",
-    targets: [
-      {
-        type: "selector",
-        value: `[data-a-target="chat-line-message-body"]`,
-      },
-      {
-        type: "selector",
-        value: "h1.tw-title",
-      },
-    ],
-    batchSize: 10,
-  }
-);
 
-// Set up initial observer
-const setupObserver = async () => {
-  // Add styles first
-  addStyles();
+    const styleManager = new StyleManager();
+    const tooltipManager = new TooltipManager();
+    const chatManager = new ChatManager();
+    const autocomplete = new EmoteAutocomplete();
 
-  // Initialize emotes
-  await initializeEmotes();
+    await styleManager.init();
+    console.log("[PEEEEP] Style manager initialized");
+    
+    await channelManager.init();
+    console.log("[PEEEEP] Channel manager initialized");
+    
+    await chatManager.init();
+    console.log("[PEEEEP] Chat manager initialized");
 
-  // Setup tooltips
-  new Tooltip();
+    await tooltipManager.init();
+    console.log("[PEEEEP] Tooltip manager initialized");
+    
+    await autocomplete.init();
+    console.log("[PEEEEP] Autocomplete manager initialized");
 
-  // Add the observer root attribute to document.body
-  document.body.setAttribute("data-observer-root", "");
-
-  // Process initial channel if we're on a channel page
-  const username = channelHandler.matchChannelName(window.location.href);
-  if (username) {
-    await channelHandler.urlChangeHandler(username);
-  }
-
-  if (DEBUG) {
-    console.info("Observer setup complete");
+    window.addEventListener("unload", () => {
+      channelManager.cleanup();
+      chatManager.cleanup();
+      tooltipManager.cleanup();
+      styleManager.cleanup();
+      autocomplete.cleanup();
+    });
+    
+  } catch (error) {
+    console.error("[PEEEEP] Manager initialization error:", error);
   }
 };
 
-setupObserver();
-
-// Disconnect observer when window is closing
-window.addEventListener("unload", () => {
-  if (observer) {
-    observer.disconnect();
-    if (DEBUG) {
-      console.info("Observer disconnected on window close");
-    }
-  }
-});
+initializeManagers();

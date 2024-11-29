@@ -7,9 +7,13 @@ export default {
     path: path.resolve("dist"),
     libraryTarget: "module",
   },
+  target: 'web',
+  optimization: {
+    minimize: false
+  },
   experiments: {
     outputModule: true, 
   },
-  mode: "development",
-  devtool: "source-map", 
+  devtool: 'inline-source-map',
+  mode: "development"
 };
