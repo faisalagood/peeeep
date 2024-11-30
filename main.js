@@ -1,9 +1,8 @@
 import { ChannelManager } from "./lib/navigation.js";
 import { TooltipManager } from "./lib/tooltip.js";
 import { StyleManager } from "./lib/styles.js";
-import { ChatManager } from "./lib/chat.js";
+import { ChatManager } from "./lib/chatProxy.js";
 import { EmoteAutocomplete } from "./lib/input.js";
-import { ReactStuff } from "./junk/react.js";
 
 const channelManager = new ChannelManager();
 
@@ -12,7 +11,9 @@ console.log("[PEEEEP] Starting initialization at", window.location.href);
 const initializeManagers = async () => {
   try {
     if (!channelManager.shouldInitialize(window.location.href)) {
-      console.log("[PEEEEP] Blocked subdomain detected, stopping initialization");
+      console.log(
+        "[PEEEEP] Blocked subdomain detected, stopping initialization"
+      );
       return;
     }
 
@@ -23,16 +24,16 @@ const initializeManagers = async () => {
 
     await styleManager.init();
     console.log("[PEEEEP] Style manager initialized");
-    
+
     await channelManager.init();
     console.log("[PEEEEP] Channel manager initialized");
-    
+
     await chatManager.init();
     console.log("[PEEEEP] Chat manager initialized");
 
     await tooltipManager.init();
     console.log("[PEEEEP] Tooltip manager initialized");
-    
+
     await autocomplete.init();
     console.log("[PEEEEP] Autocomplete manager initialized");
 
@@ -43,7 +44,6 @@ const initializeManagers = async () => {
       styleManager.cleanup();
       autocomplete.cleanup();
     });
-    
   } catch (error) {
     console.error("[PEEEEP] Manager initialization error:", error);
   }

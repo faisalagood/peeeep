@@ -8,7 +8,9 @@
       "all_frames": true,
       "matches": ["https://*.twitch.tv/*"],
       "js": ["./dist/bundle.js"],
-      "run_at": "document_end"    }
+      "run_at": "document_end",
+      "world": "MAIN"
+    }
   ],
   "icons": {
     "128": "icon.png"
