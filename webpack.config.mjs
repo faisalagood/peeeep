@@ -14,6 +14,8 @@ export default {
     concatenateModules: true,
     removeAvailableModules: true,
     splitChunks: false,
+    usedExports: true,
+    providedExports: true,
   },
   experiments: {
     outputModule: true,
