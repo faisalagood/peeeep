@@ -1,96 +1,65 @@
-import { OptimizedObserver } from "./lib/observer.js";
-import { ChannelHandler } from "./lib/navigation.js";
-import { initializeEmotes } from "./lib/emotes.js";
-import { ChatProcessor } from "./lib/processor.js";
-import { Tooltip } from "./lib/tooltip.js";
-import { addStyles } from "./lib/styles.js";
+import { styleManager } from "./lib/styles.js";
+import { tooltipManager } from "./lib/tooltip.js";
+import { chatManager } from "./lib/chat.js";
+import { channelManager } from "./lib/navigation.js";
+import { emoteManager } from "./lib/emotes.js";
+import { emoteAutocomplete } from "./lib/input.js";
+import { usernameColorManager } from "./lib/mentions.js";
 
-// Debug mode setting
-const DEBUG = true;
+console.log("[PEEEEP] Starting initialization at", window.location.href);
 
-// Current Channel Name FIX LATER
-
-let currentChannel = "";
-
-// Create chat processor instance
-const chatProcessor = new ChatProcessor();
-
-// Create Channel Handler
-
-const channelHandler = new ChannelHandler();
-
-// Process chat message body
-const processChatMessage = (element) => {
-  chatProcessor.process(element);
-};
-
-// Process channel title
-const processChannelTitle = async () => {
-  const username = channelHandler.matchChannelName(window.location.href);
-  if (username && currentChannel !== username) {
-    currentChannel = username;
-    await channelHandler.urlChangeHandler(username);
-  }
-};
-
-// Create observer instance
-const observer = new OptimizedObserver(
-  (element) => {
-    if (element.matches('[data-a-target="chat-line-message-body"]')) {
-      processChatMessage(element);
-    } else if (element.matches("h1.tw-title")) {
-      processChannelTitle(element);
+const initializeApp = async () => {
+  try {
+    if (!channelManager.shouldInitialize(window.location.href)) {
+      console.log(`[PEEEEP] Skipping ${window.location.href}`);
+      return;
     }
-  },
-  {
-    containerAttribute: "data-observer-root",
-    targets: [
-      {
-        type: "selector",
-        value: `[data-a-target="chat-line-message-body"]`,
-      },
-      {
-        type: "selector",
-        value: "h1.tw-title",
-      },
-    ],
-    batchSize: 10,
-  }
-);
 
-// Set up initial observer
-const setupObserver = async () => {
-  // Add styles first
-  addStyles();
+    await styleManager.init();
+    console.log("[PEEEEP] Style manager initialized");
+    
+    await chatManager.init();
+    console.log("[PEEEEP] Chat manager initialized");
+    
+    await emoteManager.init();
+    console.log("[PEEEEP] Emote manager initialized");
 
-  // Initialize emotes
-  await initializeEmotes();
+    await tooltipManager.init();
+    console.log("[PEEEEP] Tooltip manager initialized");
+    
+    await usernameColorManager.init();
+    console.log("[PEEEEP] Username color manager initialized");
+    
+    await emoteAutocomplete.init();
+    console.log("[PEEEEP] Autocomplete manager initialized");
 
-  // Setup tooltips
-  new Tooltip();
+    channelManager.onChannelChange((oldChannelId, newChannelId) => {      
+      if (oldChannelId && newChannelId && oldChannelId !== newChannelId) {
+        chatManager.cleanupChannel?.();
+        tooltipManager.cleanupChannel?.();
+        emoteAutocomplete.cleanupChannel?.();
+        usernameColorManager.cleanupChannel?.();
+        emoteManager.cleanupChannel?.();
+      }
+    });
 
-  // Add the observer root attribute to document.body
-  document.body.setAttribute("data-observer-root", "");
+    await channelManager.init();
+    
+    console.log("[PEEEEP] Channel manager initialized");
 
-  // Process initial channel if we're on a channel page
-  const username = channelHandler.matchChannelName(window.location.href);
-  if (username) {
-    await channelHandler.urlChangeHandler(username);
-  }
+    window.addEventListener("unload", () => {
+      channelManager.cleanup();
+      chatManager.cleanup();
+      tooltipManager.cleanup();
+      styleManager.cleanup();
+      emoteAutocomplete.cleanup();
+      usernameColorManager.cleanup();
+      emoteManager.cleanup();
+    });
 
-  if (DEBUG) {
-    console.info("Observer setup complete");
+  } catch (error) {
+    console.error("[PEEEEP] Initialization error:", error);
   }
 };
 
-setupObserver();
-
-// Disconnect observer when window is closing
-window.addEventListener("unload", () => {
-  if (observer) {
-    observer.disconnect();
-    if (DEBUG) {
-      console.info("Observer disconnected on window close");
-    }
-  }
-});
+initializeApp();

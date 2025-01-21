@@ -1,5 +1,204 @@
 /******/ var __webpack_modules__ = ({
 
+/***/ "./lib/chat.js":
+/*!*********************!*\
+  !*** ./lib/chat.js ***!
+  \*********************/
+/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   chatManager: () => (/* binding */ chatManager)
+/* harmony export */ });
+/* harmony import */ var _observer_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./observer.js */ "./lib/observer.js");
+/* harmony import */ var _emotes_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./emotes.js */ "./lib/emotes.js");
+
+
+
+class ChatManager {
+  #unsubscribe = null;
+  #spacer = document.createTextNode(" ");
+  #WORD_REGEX = /\S+|\s+/g;
+  #SPACE_REGEX = /^\s+$/;
+
+  #processText(text, fragment, lastNode) {
+    if (!text) return lastNode;
+
+    const words = text.match(this.#WORD_REGEX) || [];
+    let modifierContainer = null;
+    let currentSpan = null;
+    let needsSpace = false;
+
+    for (const word of words) {
+      if (this.#SPACE_REGEX.test(word)) {
+        needsSpace = true;
+        continue;
+      }
+
+      const emote = _emotes_js__WEBPACK_IMPORTED_MODULE_1__.emoteManager.getEmote(word);
+      if (!emote) {
+        if (modifierContainer) {
+          fragment.appendChild(modifierContainer);
+          fragment.appendChild(this.#spacer.cloneNode());
+          modifierContainer = null;
+        }
+
+        if (!currentSpan) {
+          currentSpan = document.createElement("span");
+        } else if (needsSpace) {
+          currentSpan.textContent += " ";
+        }
+        currentSpan.textContent += word;
+        needsSpace = true;
+        lastNode = currentSpan;
+        continue;
+      }
+
+      if (currentSpan) {
+        fragment.appendChild(currentSpan);
+        fragment.appendChild(this.#spacer.cloneNode());
+        currentSpan = null;
+      }
+
+      const img = _emotes_js__WEBPACK_IMPORTED_MODULE_1__.emoteManager.createEmoteImage(emote);
+      if (emote.modifier && lastNode?.classList?.contains("peeeep")) {
+        if (!modifierContainer) {
+          modifierContainer = document.createElement("div");
+          modifierContainer.className = "modifier-container";
+          modifierContainer.appendChild(lastNode.cloneNode(true));
+          if (lastNode.parentNode === fragment) {
+            fragment.replaceChild(modifierContainer, lastNode);
+          } else {
+            fragment.appendChild(modifierContainer);
+          }
+        }
+        modifierContainer.appendChild(img);
+        lastNode = img;
+        continue;
+      }
+
+      if (modifierContainer) {
+        fragment.appendChild(modifierContainer);
+        fragment.appendChild(this.#spacer.cloneNode());
+        modifierContainer = null;
+      }
+      fragment.appendChild(img);
+      if (!emote.modifier) {
+        fragment.appendChild(this.#spacer.cloneNode());
+      }
+      lastNode = img;
+    }
+
+    if (modifierContainer) {
+      fragment.appendChild(modifierContainer);
+      fragment.appendChild(this.#spacer.cloneNode());
+    }
+
+    if (currentSpan) {
+      fragment.appendChild(currentSpan);
+      fragment.appendChild(this.#spacer.cloneNode());
+    }
+
+    return lastNode;
+  }
+
+  process(container) {
+    if (
+      !_emotes_js__WEBPACK_IMPORTED_MODULE_1__.emoteManager.containsEmote(container) &&
+      !container.querySelector(".chat-line__message--emote-button")
+    )
+      return;
+
+    const fragment = document.createDocumentFragment();
+    let lastNode = null;
+
+    for (const node of container.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        lastNode = this.#processText(node.textContent, fragment, lastNode);
+        continue;
+      }
+
+      if (node.classList?.contains("text-fragment")) {
+        lastNode = this.#processText(node.textContent, fragment, lastNode);
+        continue;
+      }
+
+      const twitchEmote = node.querySelector("img.chat-image");
+      if (twitchEmote?.isConnected) {
+        const img = document.createElement("img");
+        img.src = twitchEmote.src;
+        img.alt = twitchEmote.alt;
+        img.className = "peeeep";
+        fragment.appendChild(img);
+        fragment.appendChild(this.#spacer.cloneNode());
+        lastNode = img;
+        continue;
+      }
+
+      if (node.tagName === "IMG" && node.classList.contains("peeeep")) {
+        const isModifier = node.classList.contains("modifier");
+        const img = node.cloneNode(true);
+
+        if (isModifier && lastNode?.classList?.contains("peeeep")) {
+          const modifierContainer = document.createElement("div");
+          modifierContainer.className = "modifier-container";
+          modifierContainer.appendChild(lastNode.cloneNode(true));
+          if (lastNode.parentNode === fragment) {
+            fragment.replaceChild(modifierContainer, lastNode);
+          } else {
+            fragment.appendChild(modifierContainer);
+          }
+          modifierContainer.appendChild(img);
+          lastNode = img;
+        } else {
+          fragment.appendChild(img);
+          lastNode = img;
+        }
+        continue;
+      }
+
+      fragment.appendChild(node.cloneNode(true));
+      fragment.appendChild(this.#spacer.cloneNode());
+      lastNode = node;
+    }
+
+    container.replaceChildren(fragment);
+  }
+
+  async init() {
+    await new Promise((resolve, reject) => {
+      requestIdleCallback(
+        () => {
+          try {
+            this.#unsubscribe = _observer_js__WEBPACK_IMPORTED_MODULE_0__.observer.subscribe(
+              'span[data-a-target="chat-line-message-body"]',
+              (element) => this.process(element)
+            );
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        },
+        { timeout: 5000 }
+      );
+    });
+  }
+
+  cleanupChannel() {
+    _observer_js__WEBPACK_IMPORTED_MODULE_0__.observer.clearPending();
+  }
+
+  cleanup() {
+    this.#unsubscribe?.();
+    this.#unsubscribe = null;
+  }
+}
+
+const chatManager = new ChatManager();
+
+
+/***/ }),
+
 /***/ "./lib/emotes.js":
 /*!***********************!*\
   !*** ./lib/emotes.js ***!
@@ -8,286 +207,873 @@
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   clearChannelEmotes: () => (/* binding */ clearChannelEmotes),
-/* harmony export */   containsEmote: () => (/* binding */ containsEmote),
-/* harmony export */   createBaseEmoteImage: () => (/* binding */ createBaseEmoteImage),
-/* harmony export */   createEmoteImage: () => (/* binding */ createEmoteImage),
-/* harmony export */   getEmote: () => (/* binding */ getEmote),
-/* harmony export */   initializeEmotes: () => (/* binding */ initializeEmotes),
-/* harmony export */   loadChannelEmotes: () => (/* binding */ loadChannelEmotes)
+/* harmony export */   emoteManager: () => (/* binding */ emoteManager)
 /* harmony export */ });
- // Default to false for production
- let emotesDebug = false;
+class EmoteManager {
+  static #instance = null;
+  static #MAX_RETRIES = 1;
+  static #RETRY_DELAY = 2000;
+  static #ENDPOINTS = {
+    ffz: {
+      global: "https://api.frankerfacez.com/v1/set/global/ids",
+      channel: (id) => `https://api.frankerfacez.com/v1/room/id/${id}`,
+    },
+    bttv: {
+      global: "https://api.betterttv.net/3/cached/emotes/global",
+      channel: (id) => `https://api.betterttv.net/3/cached/users/twitch/${id}`,
+    },
+    sevenTv: {
+      global: "https://7tv.io/v3/emote-sets/global",
+      channel: (id) => `https://7tv.io/v3/users/twitch/${id}`,
+    },
+  };
 
- // Separate maps for global and channel emotes
- const globalEmotes = new Map();
- const channelEmotes = new Map();
- let channelEmoteRegex = null;
- let globalEmoteRegex = null;
- let currentChannelId = null;
- let initializePromise = null;
- 
- 
- // Utility function to create base emote image element
- const createBaseEmoteImage = (name, url, modifier = false) => {
-   const img = document.createElement("img");
-   img.src = url;
-   img.alt = name;
-   img.classList.add("simple-emote-extension");
-   if (modifier) img.classList.add("modifier");
-   return img;
- };
- 
- // Utility function to create regex from emote names
- const createEmoteRegex = (emoteMap) => {
-   if (emoteMap.size === 0) return null;
-   const escapedEmoteNames = [...emoteMap.keys()].map(name => 
-     name.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")
-   );
-   return new RegExp(`(${escapedEmoteNames.join("|")})`, "i");
- };
- 
- // Utility function to handle API responses
- const handleApiResponse = async (response, errorMessage) => {
-   if (!response.ok) {
-     throw new Error(`${errorMessage} Status: ${response.status}`);
-   }
-   return response.json();
- };
- 
- // Load FFZ emotes
- async function loadFFZEmotes(id, targetMap) {
-   try {
-     const data = await handleApiResponse(
-       await fetch(`https://api.frankerfacez.com/v1/room/id/${id}`),
-       "FFZ HTTP error!"
-     );
-     
-     if (data?.sets?.[data.room?.set]?.emoticons) {
-       data.sets[data.room.set].emoticons.forEach(emote => {
-         if (emote.name && emote.urls?.[1]) {
-           targetMap.set(emote.name, {
-             name: emote.name,
-             url: emote.urls[1],
-             bigUrl: emote.urls[4] || emote.urls[1],
-             height: emote.height,
-             width: emote.width,
-             service: "ffz",
-             element: createBaseEmoteImage(emote.name, emote.urls[1])
-           });
-         }
-       });
-     }
-   } catch (error) {
-     emotesDebug && console.error("FFZ emotes error:", error.message);
-   }
- }
- 
- // Load BTTV emotes
- async function loadBTTVEmotes(userId, targetMap) {
-   try {
-     const data = await handleApiResponse(
-       await fetch(`https://api.betterttv.net/3/cached/users/twitch/${userId}`),
-       "BTTV HTTP error!"
-     );
-     
-     [...(data.channelEmotes || []), ...(data.sharedEmotes || [])].forEach(emote => {
-       if (emote.code && emote.id) {
-         const url = `https://cdn.betterttv.net/emote/${emote.id}/1x`;
-         targetMap.set(emote.code, {
-           name: emote.code,
-           url,
-           bigUrl: `https://cdn.betterttv.net/emote/${emote.id}/3x`,
-           width: emote.width,
-           height: emote.height,
-           service: "bttv",
-           element: createBaseEmoteImage(emote.code, url)
-         });
-       }
-     });
-   } catch (error) {
-     emotesDebug && console.error("BTTV emotes error:", error.message);
-   }
- }
- 
- // Load 7TV emotes
- async function load7TVEmotes(userId, targetMap) {
-   try {
-     const data = await handleApiResponse(
-       await fetch(`https://7tv.io/v3/users/twitch/${userId}`),
-       "7TV HTTP error!"
-     );
-     
-     data?.emote_set?.emotes?.forEach(emote => {
-       const file = emote.data?.host?.files?.find(f => f.name === "1x.webp");
-       if (emote.name && emote.id && file) {
-         const url = `https:${emote.data.host.url}/1x.webp`;
-         const modifier = Boolean(emote.flags > 0 || emote.data.flags > 0);
-         targetMap.set(emote.name, {
-           name: emote.name,
-           url,
-           bigUrl: `https:${emote.data.host.url}/4x.webp`,
-           width: file.width,
-           height: file.height,
-           modifier,
-           service: "7tv",
-           element: createBaseEmoteImage(emote.name, url, modifier)
-         });
-       }
-     });
-   } catch (error) {
-     emotesDebug && console.error("7TV emotes error:", error.message);
-   }
- }
- 
- // Load global emotes (called once)
- async function loadGlobalEmotes() {
-   try {
-     const [ffzResponse, bttvResponse, sevenTVResponse] = await Promise.all([
-       fetch("https://api.frankerfacez.com/v1/set/global/ids"),
-       fetch("https://api.betterttv.net/3/cached/emotes/global"),
-       fetch("https://7tv.io/v3/emote-sets/global")
-     ]);
- 
-     const [ffzData, bttvData, sevenTVData] = await Promise.all([
-       handleApiResponse(ffzResponse, "FFZ Global HTTP error!"),
-       handleApiResponse(bttvResponse, "BTTV Global HTTP error!"),
-       handleApiResponse(sevenTVResponse, "7TV Global HTTP error!")
-     ]);
- 
-     // Process FFZ global emotes
-     ffzData?.sets?.[3]?.emoticons?.forEach(emote => {
-       if (emote.name && emote.urls?.[1]) {
-         globalEmotes.set(emote.name, {
-           name: emote.name,
-           url: emote.urls[1],
-           bigUrl: emote.urls[4] || emote.urls[1],
-           height: emote.height,
-           width: emote.width,
-           service: "ffz",
-           element: createBaseEmoteImage(emote.name, emote.urls[1])
-         });
-       }
-     });
- 
-     // Process BTTV global emotes
-     bttvData?.forEach(emote => {
-       if (emote.code && emote.id) {
-         const url = `https://cdn.betterttv.net/emote/${emote.id}/1x`;
-         globalEmotes.set(emote.code, {
-           name: emote.code,
-           url,
-           bigUrl: `https://cdn.betterttv.net/emote/${emote.id}/3x`,
-           width: emote.width,
-           height: emote.height,
-           service: "bttv",
-           element: createBaseEmoteImage(emote.code, url)
-         });
-       }
-     });
- 
-     // Process 7TV global emotes
-     sevenTVData?.emotes?.forEach(emote => {
-       const file = emote.data?.host?.files?.find(f => f.name === "1x.webp");
-       if (emote.name && emote.id && file) {
-         const url = `https:${emote.data.host.url}/1x.webp`;
-         const modifier = Boolean(emote.data.flags > 0);
-         globalEmotes.set(emote.name, {
-           name: emote.name,
-           url,
-           bigUrl: `https:${emote.data.host.url}/3x.webp`,
-           width: file.width,
-           height: file.height,
-           modifier,
-           service: "7tv",
-           element: createBaseEmoteImage(emote.name, url, modifier)
-         });
-       }
-     });
- 
-     globalEmoteRegex = createEmoteRegex(globalEmotes);
-     emotesDebug && console.info("Loaded global emotes:", globalEmotes.size);
-   } catch (error) {
-     emotesDebug && console.error("Global emotes error:", error);
-   }
- }
- 
- // Modified loadChannelEmotes
- async function loadChannelEmotes(userObject) {
-   if (!userObject?.id || userObject.id === currentChannelId) return;
-   
-   // Clear previous channel emotes first
-   clearChannelEmotes();
-   currentChannelId = userObject.id;
-   
-   emotesDebug && console.info(`Loading emotes for channel: ${userObject.username}`);
-   
-   try {
-     // Ensure global emotes are loaded first
-     await initializeEmotes();
-     
-     // Load all channel emotes in parallel
-     const results = await Promise.allSettled([
-       loadFFZEmotes(userObject.id, channelEmotes),
-       loadBTTVEmotes(userObject.id, channelEmotes),
-       load7TVEmotes(userObject.id, channelEmotes)
-     ]);
-     
-     // Log any errors but continue
-     results.forEach((result, index) => {
-       if (result.status === 'rejected') {
-         emotesDebug && console.error(`Error loading emotes from source ${index}:`, result.reason);
-       }
-     });
- 
-     channelEmoteRegex = createEmoteRegex(channelEmotes);
-     emotesDebug && console.info(`Loaded ${channelEmotes.size} channel emotes`);
-   } catch (error) {
-     emotesDebug && console.error("Channel emotes error:", error);
-     // Still create regex even if some emotes failed
-     channelEmoteRegex = createEmoteRegex(channelEmotes);
-   }
- }
- 
- // Clear all channel-specific emotes and reset channel state
- function clearChannelEmotes() {
-   channelEmotes.clear();
-   channelEmoteRegex = null;
-   currentChannelId = null;
-   emotesDebug && console.info("Cleared channel emotes");
- }
- 
- // Initialize emotes system
- async function initializeEmotes() {
-   // Only start one initialization
-   if (!initializePromise) {
-     initializePromise = (async () => {
-       if (globalEmotes.size === 0) {
-         await loadGlobalEmotes();
-       }
-     })();
-   }
-   return initializePromise;
- }
- 
- // Get emote from either global or channel emotes
- function getEmote(emoteName) {
-   return channelEmotes.get(emoteName) || globalEmotes.get(emoteName);
- }
- 
- // Check if text contains any emotes
- function containsEmote(element) {
-   const text = element.textContent;
-   return (channelEmoteRegex?.test(text) || globalEmoteRegex?.test(text)) ?? false;
- }
- 
- // Create an emote image element using cloneNode for better memory usage
- function createEmoteImage(emote) {
-   return emote.element.cloneNode(true);
- }
- 
- 
- 
+  #globalEmotes = new Map();
+  #channelEmotes = new Map();
+  #globalEmoteRegex = null;
+  #channelEmoteRegex = null;
+
+  constructor() {
+    if (EmoteManager.#instance) {
+      return EmoteManager.#instance;
+    }
+    EmoteManager.#instance = this;
+  }
+
+  static getInstance() {
+    return (EmoteManager.#instance ??= new EmoteManager());
+  }
+
+  async #fetchWithRetry(
+    url,
+    errorMessage,
+    retries = EmoteManager.#MAX_RETRIES
+  ) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(url);
+        const data = await this.#handleApiResponse(response, errorMessage);
+        if (data) return data;
+
+        if (attempt < retries) {
+          console.warn(`[PEEEEP] Retry ${attempt}/${retries} for ${url}`);
+          await new Promise((resolve) =>
+            setTimeout(resolve, EmoteManager.#RETRY_DELAY)
+          );
+        }
+      } catch (error) {
+        if (attempt === retries) throw error;
+        console.warn(
+          `[PEEEEP] Retry ${attempt}/${retries} after error:`,
+          error
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, EmoteManager.#RETRY_DELAY)
+        );
+      }
+    }
+    return null;
+  }
+
+  #createEmoteImage(name, url, modifier = false) {
+    const img = new Image();
+    img.src = url;
+    img.alt = name;
+    img.className = "peeeep";
+    if (modifier) img.classList.add("modifier");
+    return img;
+  }
+
+  #createEmoteRegex(emoteMap) {
+    if (!emoteMap.size) return null;
+
+    const escapedEmoteNames = Array.from(emoteMap.keys())
+      .map((name) => name.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"))
+      .sort((a, b) => b.length - a.length);
+
+    return new RegExp(
+      `(?:^|\\b|\\s)(${escapedEmoteNames.join("|")})(?=\\b|\\s|$)`,
+      "g"
+    );
+  }
+
+  async #handleApiResponse(response, errorMessage) {
+    if (!response.ok && response.status !== 404) {
+      console.warn(`${errorMessage} Status: ${response.status}`);
+      return null;
+    }
+    return response.ok ? response.json() : null;
+  }
+
+  async #loadFFZEmotes(id, targetMap) {
+    try {
+      const data = await this.#fetchWithRetry(
+        EmoteManager.#ENDPOINTS.ffz.channel(id),
+        "FFZ HTTP error!"
+      );
+
+      if (!data?.sets?.[data.room?.set]?.emoticons) return;
+
+      data.sets[data.room.set].emoticons.forEach((emote) => {
+        if (!emote.name || !emote.urls?.[1]) return;
+
+        const url = emote.animated ? emote.animated[1] : emote.urls[1];
+        const bigUrl = emote.animated
+          ? emote.animated[4] || emote.animated[1]
+          : emote.urls[4] || emote.urls[1];
+
+        targetMap.set(emote.name, {
+          name: emote.name,
+          url,
+          bigUrl,
+          height: emote.height,
+          width: emote.width,
+          service: "ffz",
+          modifier: false,
+        });
+      });
+    } catch (error) {
+      if (!(error instanceof TypeError)) {
+        console.error("[PEEEEP] FFZ emotes error:", error);
+      }
+    }
+  }
+
+  async #loadBTTVEmotes(userId, targetMap) {
+    try {
+      const data = await this.#fetchWithRetry(
+        EmoteManager.#ENDPOINTS.bttv.channel(userId),
+        "BTTV HTTP error!"
+      );
+
+      if (!data) return;
+
+      [...(data.channelEmotes || []), ...(data.sharedEmotes || [])].forEach(
+        (emote) => {
+          if (!emote.code || !emote.id) return;
+
+          const url = `https://cdn.betterttv.net/emote/${emote.id}/1x`;
+          targetMap.set(emote.code, {
+            name: emote.code,
+            url,
+            bigUrl: `https://cdn.betterttv.net/emote/${emote.id}/3x`,
+            width: emote.width,
+            height: emote.height,
+            service: "bttv",
+            modifier: false,
+          });
+        }
+      );
+    } catch (error) {
+      if (!(error instanceof TypeError)) {
+        console.error("[PEEEEP] BTTV emotes error:", error);
+      }
+    }
+  }
+
+  async #load7TVEmotes(userId, targetMap) {
+    try {
+      const data = await this.#fetchWithRetry(
+        EmoteManager.#ENDPOINTS.sevenTv.channel(userId),
+        "7TV HTTP error!"
+      );
+
+      if (!data?.emote_set?.emotes) return;
+
+      data.emote_set.emotes.forEach((emote) => {
+        const file = emote.data?.host?.files?.find((f) => f.name === "1x.webp");
+        if (!emote.name || !emote.id || !file) return;
+
+        const url = `https:${emote.data.host.url}/1x.webp`;
+        const modifier = Boolean(emote.flags > 0 || emote.data.flags > 0);
+
+        targetMap.set(emote.name, {
+          name: emote.name,
+          url,
+          bigUrl: `https:${emote.data.host.url}/4x.webp`,
+          width: file.width,
+          height: file.height,
+          modifier,
+          service: "7tv",
+        });
+      });
+    } catch (error) {
+      if (!(error instanceof TypeError)) {
+        console.error("[PEEEEP] 7TV emotes error:", error);
+      }
+    }
+  }
+
+  async #loadGlobalEmotes() {
+    if (this.#globalEmotes.size > 0) return;
+
+    try {
+      const [ffzData, bttvData, sevenTVData] = await Promise.all([
+        this.#fetchWithRetry(
+          EmoteManager.#ENDPOINTS.ffz.global,
+          "FFZ Global HTTP error!"
+        ),
+        this.#fetchWithRetry(
+          EmoteManager.#ENDPOINTS.bttv.global,
+          "BTTV Global HTTP error!"
+        ),
+        this.#fetchWithRetry(
+          EmoteManager.#ENDPOINTS.sevenTv.global,
+          "7TV Global HTTP error!"
+        ),
+      ]);
+
+      if (ffzData?.sets?.[3]?.emoticons) {
+        ffzData.sets[3].emoticons.forEach((emote) => {
+          if (!emote.name || !emote.urls?.[1]) return;
+
+          const url = emote.animated ? emote.animated[1] : emote.urls[1];
+          const bigUrl = emote.animated
+            ? emote.animated[4] || emote.animated[1]
+            : emote.urls[4] || emote.urls[1];
+
+          this.#globalEmotes.set(emote.name, {
+            name: emote.name,
+            url,
+            bigUrl,
+            height: emote.height,
+            width: emote.width,
+            service: "ffz",
+            modifier: false,
+          });
+        });
+      }
+
+      if (bttvData) {
+        bttvData.forEach((emote) => {
+          if (!emote.code || !emote.id) return;
+
+          const url = `https://cdn.betterttv.net/emote/${emote.id}/1x`;
+          this.#globalEmotes.set(emote.code, {
+            name: emote.code,
+            url,
+            bigUrl: `https://cdn.betterttv.net/emote/${emote.id}/3x`,
+            width: emote.width,
+            height: emote.height,
+            service: "bttv",
+            modifier: false,
+          });
+        });
+      }
+
+      if (sevenTVData?.emotes) {
+        sevenTVData.emotes.forEach((emote) => {
+          const file = emote.data?.host?.files?.find(
+            (f) => f.name === "1x.webp"
+          );
+          if (!emote.name || !emote.id || !file) return;
+
+          const url = `https:${emote.data.host.url}/1x.webp`;
+          const modifier = Boolean(emote.flags > 0 || emote.data.flags > 0);
+
+          this.#globalEmotes.set(emote.name, {
+            name: emote.name,
+            url,
+            bigUrl: `https:${emote.data.host.url}/3x.webp`,
+            width: file.width,
+            height: file.height,
+            modifier,
+            service: "7tv",
+          });
+        });
+      }
+
+      this.#globalEmoteRegex = this.#createEmoteRegex(this.#globalEmotes);
+      console.info("[PEEEEP] Loaded global emotes:", {
+        total: this.#globalEmotes.size,
+        ffz: ffzData?.sets?.[3]?.emoticons?.length || 0,
+        bttv: bttvData?.length || 0,
+        sevenTv: sevenTVData?.emotes?.length || 0,
+      });
+    } catch (error) {
+      if (!(error instanceof TypeError)) {
+        console.error("[PEEEEP] Global emotes error:", error);
+      }
+      this.#globalEmoteRegex = this.#createEmoteRegex(this.#globalEmotes);
+    }
+  }
+
+  async init() {
+    await this.#loadGlobalEmotes();
+  }
+
+  async loadChannelEmotes(userObject) {
+    if (!userObject?.id) return;
+
+    this.cleanupChannel();
+
+    console.info(`[PEEEEP] Loading emotes for channel: ${userObject.username}`);
+
+    try {
+      await Promise.allSettled([
+        this.#loadFFZEmotes(userObject.id, this.#channelEmotes),
+        this.#loadBTTVEmotes(userObject.id, this.#channelEmotes),
+        this.#load7TVEmotes(userObject.id, this.#channelEmotes),
+      ]);
+
+      this.#channelEmoteRegex = this.#createEmoteRegex(this.#channelEmotes);
+      console.info("[PEEEEP] Loaded channel emotes:", this.#channelEmotes.size);
+    } catch (error) {
+      if (!(error instanceof TypeError)) {
+        console.error("[PEEEEP] Channel emotes error:", error);
+      }
+      this.#channelEmoteRegex = this.#createEmoteRegex(this.#channelEmotes);
+    }
+  }
+
+  getEmote(emoteName) {
+    return (
+      this.#channelEmotes.get(emoteName) || this.#globalEmotes.get(emoteName)
+    );
+  }
+
+  searchEmotes(query) {
+    if (!query || typeof query !== "string") return [];
+
+    const results = [];
+
+    for (const [emoteName, emote] of this.#channelEmotes) {
+      if (emoteName.startsWith(query)) {
+        results.push({ ...emote });
+      }
+    }
+
+    for (const [emoteName, emote] of this.#globalEmotes) {
+      if (emoteName.startsWith(query)) {
+        results.push({ ...emote });
+      }
+    }
+
+    return results;
+  }
+
+  containsEmote(element) {
+    if (!element.textContent) return false;
+
+    const text = element.textContent.trim();
+    if (!text) return false;
+
+    if (this.#channelEmoteRegex) {
+      this.#channelEmoteRegex.lastIndex = 0;
+      if (this.#channelEmoteRegex.test(text)) return true;
+    }
+
+    if (this.#globalEmoteRegex) {
+      this.#globalEmoteRegex.lastIndex = 0;
+      if (this.#globalEmoteRegex.test(text)) return true;
+    }
+
+    return false;
+  }
+
+  createEmoteImage(emote) {
+    return this.#createEmoteImage(emote.name, emote.url, emote.modifier);
+  }
+
+  cleanupChannel() {
+    this.#channelEmotes.clear();
+    this.#channelEmoteRegex = null;
+  }
+
+  cleanup() {
+    this.cleanupChannel();
+    this.#globalEmotes.clear();
+    this.#globalEmoteRegex = null;
+  }
+}
+
+const emoteManager = EmoteManager.getInstance();
+
+
+/***/ }),
+
+/***/ "./lib/input.js":
+/*!**********************!*\
+  !*** ./lib/input.js ***!
+  \**********************/
+/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   emoteAutocomplete: () => (/* binding */ emoteAutocomplete)
+/* harmony export */ });
+/* harmony import */ var _emotes_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./emotes.js */ "./lib/emotes.js");
+/* harmony import */ var _observer_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./observer.js */ "./lib/observer.js");
+
+
+
+class EmoteAutocomplete {
+  static #instance = null;
+
+  #currentIndex = 0;
+  #filteredEmotes = [];
+  #unsubscribe = null;
+  #boundKeyHandler = null;
+  #elements = new WeakMap();
+  #isAutoCompleting = false;
+  #chatInput = null;
+
+  constructor() {
+    if (EmoteAutocomplete.#instance) {
+      return EmoteAutocomplete.#instance;
+    }
+    EmoteAutocomplete.#instance = this;
+    this.#boundKeyHandler = this.#handleKeydown.bind(this);
+  }
+
+  static getInstance() {
+    return (EmoteAutocomplete.#instance ??= new EmoteAutocomplete());
+  }
+
+  async init() {
+    const selector = [
+      'div[role="textbox"][data-slate-editor="true"]',
+      'div[data-a-target="chat-input"]',
+      "div.chat-wysiwyg-input__editor",
+    ].join(",");
+
+    this.#unsubscribe = _observer_js__WEBPACK_IMPORTED_MODULE_1__.observer.subscribe(
+      '[data-a-target="chat-input"]',
+      (element) => {
+        if (this.#isValidChatInput(element)) {
+          this.#chatInput = element;
+          this.#setupChatInput(element);
+        }
+      }
+    );
+
+    const existingInput = document.querySelector(selector);
+    if (existingInput && this.#isValidChatInput(existingInput)) {
+      this.#chatInput = existingInput;
+      this.#setupChatInput(existingInput);
+    }
+
+    document.addEventListener("click", this.#handleOutsideClick.bind(this));
+  }
+
+  #isValidChatInput(element) {
+    return (
+      element?.isConnected &&
+      element.getAttribute("role") === "textbox" &&
+      element.getAttribute("data-slate-editor") === "true" &&
+      element.getAttribute("data-a-target") === "chat-input" &&
+      element.classList.contains("chat-wysiwyg-input__editor")
+    );
+  }
+
+  #handleOutsideClick = (e) => {
+    if (!e.target.closest(".emote-popup")) {
+      this.#isAutoCompleting = false;
+    }
+  };
+
+  #setupChatInput(element) {
+    if (this.#elements.has(element)) {
+      return;
+    }
+
+    const handleTabCapture = (event) => {
+      if (event.key === "Tab" && !event.shiftKey) {
+        const currentText = element.textContent?.trim();
+        if (currentText && !this.#getPopup()) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          this.#handleTabComplete(element);
+        }
+      }
+    };
+
+    element.addEventListener("keydown", handleTabCapture, { capture: true });
+
+    const setupWithRetry = (retryCount = 0, maxRetries = 3) => {
+      const fiber = this.#getReactFiber(element);
+
+      if (!fiber && retryCount < maxRetries) {
+        console.debug(
+          `[EmoteAutocomplete] Retry ${
+            retryCount + 1
+          }/${maxRetries} getting React fiber`
+        );
+        setTimeout(
+          () => setupWithRetry(retryCount + 1, maxRetries),
+          100 * Math.pow(2, retryCount)
+        );
+        return;
+      }
+
+      if (!fiber) {
+        console.warn(
+          "[EmoteAutocomplete] Failed to get React fiber for chat input"
+        );
+        return;
+      }
+
+      const chatInputComponent = this.#findReactComponent(fiber, (n) => {
+        try {
+          return (
+            n?.memoizedProps?.value != null &&
+            typeof n?.memoizedProps?.onChange === "function" &&
+            typeof n?.memoizedProps?.onValueUpdate === "function"
+          );
+        } catch (e) {
+          return false;
+        }
+      });
+
+      if (!chatInputComponent) {
+        console.warn("[EmoteAutocomplete] Failed to find chat input component");
+        return;
+      }
+
+      const originalOnChange = chatInputComponent.memoizedProps.onChange;
+      chatInputComponent.memoizedProps.onChange = (e) => {
+        if (!e.target.value?.[0]?.children?.[0]?.text) {
+          this.#removePopup();
+        }
+        originalOnChange(e);
+      };
+
+      this.#elements.set(element, {
+        input: element,
+        cleanup: () => {
+          element.removeEventListener("keydown", this.#boundKeyHandler);
+          element.removeEventListener("keydown", handleTabCapture, {
+            capture: true,
+          });
+        },
+      });
+
+      element.addEventListener("keydown", this.#boundKeyHandler);
+    };
+
+    setupWithRetry();
+  }
+
+  #getPopup() {
+    return document.querySelector(".emote-popup");
+  }
+
+  #removePopup() {
+    this.#getPopup()?.remove();
+    this.#isAutoCompleting = false;
+  }
+
+  #handleKeydown(event) {
+    if (event.key === "Escape") {
+      this.#removePopup();
+    }
+
+    if (
+      event.key === "Backspace" &&
+      !this.#chatInput.querySelector('[data-slate-string="true"]')?.textContent
+    ) {
+      this.#removePopup();
+      return;
+    }
+
+    const popup = this.#getPopup();
+    if (popup) {
+      this.#isAutoCompleting = true;
+      this.#handlePopupNavigation(event, popup);
+    }
+  }
+
+  #handlePopupNavigation(event, popup) {
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        event.stopPropagation();
+        this.#currentIndex =
+          (this.#currentIndex + 1) % this.#filteredEmotes.length;
+        this.#updateSelection(popup);
+        break;
+
+      case "ArrowUp":
+        event.preventDefault();
+        event.stopPropagation();
+        this.#currentIndex =
+          (this.#currentIndex - 1 + this.#filteredEmotes.length) %
+          this.#filteredEmotes.length;
+        this.#updateSelection(popup);
+        break;
+
+      case "Tab":
+        event.preventDefault();
+        event.stopPropagation();
+        this.#currentIndex =
+          (this.#currentIndex + 1) % this.#filteredEmotes.length;
+        this.#updateSelection(popup);
+        break;
+
+      case "Enter":
+        if (this.#isAutoCompleting) {
+          event.preventDefault();
+          event.stopPropagation();
+          const selectedEmote = this.#filteredEmotes[this.#currentIndex];
+          if (selectedEmote) {
+            this.#insertEmote(selectedEmote.name);
+            this.#removePopup();
+          }
+        }
+        break;
+
+      case "Escape":
+        event.preventDefault();
+        event.stopPropagation();
+        this.#removePopup();
+        break;
+    }
+  }
+
+  #getCurrentWord(text) {
+    const words = text.split(/\s+/);
+    return words[words.length - 1] || "";
+  }
+
+  #handleTabComplete(inputElement) {
+    const currentText = inputElement.textContent;
+    const currentWord = this.#getCurrentWord(currentText);
+
+    this.#currentIndex = 0;
+
+    const searchResults = _emotes_js__WEBPACK_IMPORTED_MODULE_0__.emoteManager.searchEmotes(currentWord);
+    this.#filteredEmotes = searchResults.map((emote) => ({
+      name: emote.name,
+      url: emote.url,
+    }));
+
+    if (this.#filteredEmotes.length > 0) {
+      this.#showEmotePopup(inputElement, currentWord);
+    }
+  }
+
+  #createPopupRow(emote, index) {
+    const row = document.createElement("div");
+    row.className = "emote-row";
+    row.dataset.emoteName = emote.name;
+
+    Object.assign(row.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "4px 8px",
+      cursor: "pointer",
+      background: index === 0 ? "#303032" : "transparent",
+    });
+
+    const imgContainer = document.createElement("div");
+    Object.assign(imgContainer.style, {
+      width: "28px",
+      height: "28px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    });
+
+    const img = document.createElement("img");
+    img.src = emote.url;
+    img.alt = emote.name;
+    Object.assign(img.style, {
+      maxWidth: "28px",
+      maxHeight: "28px",
+      width: "auto",
+      height: "auto",
+      objectFit: "contain",
+    });
+
+    imgContainer.appendChild(img);
+
+    const name = document.createElement("span");
+    name.textContent = emote.name;
+    name.style.color = "#efeff1";
+
+    row.append(imgContainer, name);
+
+    row.addEventListener("click", () => {
+      this.#insertEmote(emote.name);
+      this.#removePopup();
+    });
+
+    row.addEventListener("mouseover", () => {
+      this.#currentIndex = index;
+      this.#updateSelection(this.#getPopup());
+    });
+
+    return row;
+  }
+
+  #showEmotePopup(inputElement, searchWord) {
+    this.#removePopup();
+
+    const popup = document.createElement("div");
+    popup.className = "emote-popup";
+    popup.dataset.searchWord = searchWord;
+
+    Object.assign(popup.style, {
+      position: "fixed",
+      background: "#18181b",
+      border: "1px solid #303032",
+      borderRadius: "4px",
+      padding: "8px",
+      zIndex: "9999",
+      maxHeight: "300px",
+      overflowY: "auto",
+      minWidth: "200px",
+      visibility: "hidden",
+    });
+
+    const fragment = document.createDocumentFragment();
+    this.#filteredEmotes.forEach((emote, index) => {
+      fragment.appendChild(this.#createPopupRow(emote, index));
+    });
+    popup.appendChild(fragment);
+
+    document.body.appendChild(popup);
+
+    const inputRect = inputElement.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+
+    popup.style.left = `${inputRect.left}px`;
+    popup.style.bottom = `${viewportHeight - inputRect.top}px`;
+    popup.style.visibility = "visible";
+
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (!popup.contains(e.target) && e.target !== inputElement) {
+          this.#removePopup();
+        }
+      },
+      { once: true }
+    );
+  }
+
+  #updateSelection(popup) {
+    if (!popup) return;
+
+    const rows = popup.querySelectorAll(".emote-row");
+    rows.forEach((row, index) => {
+      row.style.background =
+        index === this.#currentIndex ? "#303032" : "transparent";
+    });
+
+    rows[this.#currentIndex]?.scrollIntoView({ block: "nearest" });
+  }
+
+  #getReactFiber(element) {
+    const fiberKeys = [
+      "__reactFiber$",
+      "__reactInternalInstance$",
+      "__reactContainer$",
+    ];
+
+    for (const prefix of fiberKeys) {
+      const key = Object.keys(element).find((key) => key.startsWith(prefix));
+      if (key && element[key]) {
+        return element[key];
+      }
+    }
+
+    return null;
+  }
+
+  #findReactComponent(fiber, predicate, maxDepth = 20, depth = 0) {
+    if (!fiber) return null;
+
+    try {
+      if (predicate(fiber)) return fiber;
+    } catch (_) {}
+
+    if (depth >= maxDepth) return null;
+
+    const returnResult = fiber.return
+      ? this.#findReactComponent(fiber.return, predicate, maxDepth, depth + 1)
+      : null;
+
+    if (returnResult) return returnResult;
+
+    const siblingResult = fiber.sibling
+      ? this.#findReactComponent(fiber.sibling, predicate, maxDepth, depth + 1)
+      : null;
+
+    return siblingResult;
+  }
+
+  #insertEmote(emoteName) {
+    if (!this.#chatInput) return;
+
+    const fiber = this.#getReactFiber(this.#chatInput);
+    if (!fiber) return;
+
+    const chatInputComponent = this.#findReactComponent(
+      fiber,
+      (n) =>
+        n?.memoizedProps?.value != null &&
+        n?.memoizedProps?.onChange != null &&
+        n?.memoizedProps?.onValueUpdate != null
+    );
+
+    if (!chatInputComponent) return;
+
+    const currentText = this.#chatInput.textContent;
+    const popup = this.#getPopup();
+    const searchWord = popup?.dataset.searchWord || "";
+
+    const lastIndex = currentText.lastIndexOf(searchWord);
+    const newText =
+      lastIndex >= 0
+        ? currentText.substring(0, lastIndex) +
+          emoteName +
+          currentText.substring(lastIndex + searchWord.length)
+        : currentText + emoteName;
+
+    const slateValue = [
+      {
+        type: "paragraph",
+        children: [{ text: newText }],
+      },
+    ];
+
+    chatInputComponent.memoizedProps.onChange({
+      target: { value: slateValue },
+    });
+    chatInputComponent.memoizedProps.onValueUpdate(newText);
+
+    this.#chatInput.focus();
+  }
+
+  cleanupChannel() {
+    this.#isAutoCompleting = false;
+    this.#currentIndex = 0;
+    this.#filteredEmotes = [];
+    this.#removePopup();
+  }
+
+  cleanup() {
+    this.#removePopup();
+    for (const [_, data] of this.#elements) {
+      data.cleanup();
+    }
+    this.#elements = new WeakMap();
+    this.#filteredEmotes = [];
+    this.#unsubscribe?.();
+    this.#unsubscribe = null;
+    this.#currentIndex = 0;
+    this.#isAutoCompleting = false;
+    this.#boundKeyHandler = null;
+    this.#chatInput = null;
+    document.removeEventListener("click", this.#handleOutsideClick);
+  }
+}
+
+const emoteAutocomplete = EmoteAutocomplete.getInstance();
+
 
 /***/ }),
 
@@ -299,34 +1085,64 @@ __webpack_require__.r(__webpack_exports__);
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   awaitElement: () => (/* binding */ awaitElement),
 /* harmony export */   getTwitchUserId: () => (/* binding */ getTwitchUserId)
 /* harmony export */ });
-// Fetch Twitch user ID by username
-const getTwitchUserId = async (username) => {
-  if (!username) return null;
+const TWITCH_CLIENT_ID = "ue6666qo983tsx6so1t0vnawi233wa";
+const API_TIMEOUT = 5000;
 
+const gqlRequest = async (query) => {
   const response = await fetch("https://gql.twitch.tv/gql", {
     method: "POST",
     headers: {
-      "Client-Id": "ue6666qo983tsx6so1t0vnawi233wa",
+      "Client-Id": TWITCH_CLIENT_ID,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      query: `{user(login:"${username}" lookupType:ALL){id}}`,
-    }),
+    body: JSON.stringify({ query })
   });
-
+  
   if (!response.ok) return null;
-
-  const data = await response.json();
-
-  return data?.data?.user?.id
-    ? { id: data.data.user.id, username: username }
-    : null;
+  return response.json();
 };
 
+const getTwitchUserId = async (username) => {
+  if (!username) return null;
+  
+  try {
+    const data = await gqlRequest(`{user(login:"${username}" lookupType:ALL){id}}`);
+    
+    return data?.data?.user?.id
+      ? { id: data.data.user.id, username }
+      : null;
+  } catch (error) {
+    console.error("[PEEEEP] Failed to get user ID:", error);
+    return null;
+  }
+};
 
+const awaitElement = (selector, timeout = API_TIMEOUT) => {
+  return new Promise((resolve, reject) => {
+    let startTime = performance.now();
 
+    const checkElement = () => {
+      const element = document.querySelector(selector);
+      
+      if (element?.isConnected) {
+        resolve(element);
+        return;
+      }
+
+      if (performance.now() - startTime >= timeout) {
+        reject(new Error(`Connected element not found within ${timeout}ms: ${selector}`));
+        return;
+      }
+
+      requestAnimationFrame(checkElement);
+    };
+
+    requestAnimationFrame(checkElement);
+  });
+};
 
 /***/ }),
 
@@ -344,6 +1160,128 @@ const LOADER_GIF = 'data:image/gif;base64,R0lGODlh+gD6APfqAAEBAQICAgMDAwQEBAUFBQ
 
 /***/ }),
 
+/***/ "./lib/mentions.js":
+/*!*************************!*\
+  !*** ./lib/mentions.js ***!
+  \*************************/
+/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   usernameColorManager: () => (/* binding */ usernameColorManager)
+/* harmony export */ });
+/* harmony import */ var _observer_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./observer.js */ "./lib/observer.js");
+
+
+class UsernameColorManager {
+  static #instance = null;
+  static #DEFAULT_COLORS = [
+    "#FF4545",
+    "#4DBEFF",
+    "#00E600",
+    "#FF8324",
+    "#FF6BFF",
+    "#FFB000",
+    "#00CFBB",
+    "#FF6E6E",
+    "#BC85FF",
+    "#00B5FF",
+    "#38DB48",
+    "#FF8ED4",
+    "#7F7FFF",
+    "#FF9B2F",
+    "#00C5BC",
+  ];
+
+  #colorIndex = 0;
+  #displayNameColors = new Map();
+  #unsubscribeUsername = null;
+  #unsubscribeMention = null;
+
+  constructor() {
+    if (UsernameColorManager.#instance) {
+      return UsernameColorManager.#instance;
+    }
+    UsernameColorManager.#instance = this;
+  }
+
+  static getInstance() {
+    return (UsernameColorManager.#instance ??= new UsernameColorManager());
+  }
+  async init() {
+    document
+      .querySelectorAll(".chat-author__display-name")
+      .forEach(this.#processUsername);
+    document
+      .querySelectorAll('span[data-a-target="chat-message-mention"]')
+      .forEach(this.#processMention);
+
+    this.#unsubscribeUsername = _observer_js__WEBPACK_IMPORTED_MODULE_0__.observer.subscribe(
+      ".chat-author__display-name",
+      this.#processUsername
+    );
+    this.#unsubscribeMention = _observer_js__WEBPACK_IMPORTED_MODULE_0__.observer.subscribe(
+      'span[data-a-target="chat-message-mention"]',
+      this.#processMention
+    );
+  }
+
+  #getNextDefaultColor = () => {
+    const color = UsernameColorManager.#DEFAULT_COLORS[this.#colorIndex];
+    this.#colorIndex =
+      (this.#colorIndex + 1) % UsernameColorManager.#DEFAULT_COLORS.length;
+    return color;
+  };
+
+  #processUsername = (element) => {
+    if (!element?.isConnected) return;
+
+    const displayName = element.textContent;
+    const color = element.style.color;
+
+    if (displayName && color) {
+      this.#displayNameColors.set(displayName.toLowerCase(), color);
+    }
+  };
+
+  #processMention = (element) => {
+    if (
+      !element?.isConnected ||
+      element.classList.contains("mention_processed")
+    )
+      return;
+
+    const text = element.textContent;
+    const mention = text.startsWith("@")
+      ? text.slice(1).toLowerCase()
+      : text.toLowerCase();
+    if (!mention) return;
+
+    const userColor =
+      this.#displayNameColors.get(mention) || this.#getNextDefaultColor();
+    element.style.color = userColor;
+    element.classList.add("mention_processed");
+  };
+
+  cleanupChannel() {
+    this.#colorIndex = 0;
+    this.#displayNameColors.clear();
+  }
+
+  cleanup() {
+    this.#unsubscribeUsername?.();
+    this.#unsubscribeMention?.();
+    this.#unsubscribeUsername = null;
+    this.#unsubscribeMention = null;
+    this.cleanupChannel();
+  }
+}
+
+const usernameColorManager = UsernameColorManager.getInstance();
+
+
+/***/ }),
+
 /***/ "./lib/navigation.js":
 /*!***************************!*\
   !*** ./lib/navigation.js ***!
@@ -352,100 +1290,204 @@ const LOADER_GIF = 'data:image/gif;base64,R0lGODlh+gD6APfqAAEBAQICAgMDAwQEBAUFBQ
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   ChannelHandler: () => (/* binding */ ChannelHandler)
+/* harmony export */   channelManager: () => (/* binding */ channelManager)
 /* harmony export */ });
 /* harmony import */ var _lib_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./lib.js */ "./lib/lib.js");
 /* harmony import */ var _emotes_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./emotes.js */ "./lib/emotes.js");
 
 
 
-class ChannelHandler {
-  // Static class properties
-  static CHANNEL_REGEX = /^https?:\/\/(?:(?:www|dashboard)\.)?twitch\.tv\/(?:(?:popout\/)?(\w+)(?:\/chat)?|(?:popout\/)?u\/(\w+)\/[\w-]+(?:\/chat)?)\/?(?:\?.*)?$/;
-  static IGNORED_PAGES = new Set([
-    'settings',
-    'payments',
-    'inventory',
-    'messages',
-    'subscriptions',
-    'friends',
-    'directory',
-    'videos',
-    'prime',
-    'downloads'
+class ChannelManager {
+  static #instance = null;
+
+  static #ALLOWED_SUBDOMAINS = new Set([
+    "www", "twitch", "", "dashboard"
   ]);
 
+  static #CHANNEL_PATTERNS = {
+    standard: /^https?:\/\/(?:www\.)?twitch\.tv\/(\w+)\/?(?:\?.*)?$/,
+    dashboard: /^https?:\/\/dashboard\.twitch\.tv\/(\w+)\/?(?:\?.*)?$/,
+    chat: /^https?:\/\/(?:www\.)?twitch\.tv\/(?:popout\/)?(?:moderator\/)?(\w+)\/chat\/?(?:\?.*)?$/,
+    userPage: /^https?:\/\/(?:www\.)?twitch\.tv\/(?:popout\/)?u\/(\w+)\/[\w-]+(?:\/chat)?\/?(?:\?.*)?$/,
+    embed: /^https?:\/\/(?:www\.)?twitch\.tv\/embed\/(\w+)\/chat(?:\?.*)?$/,
+  };
+
+  static #IGNORED_PAGES = new Set([
+    "settings", "payments", "inventory", "messages", "subscriptions", 
+    "friends", "directory", "videos", "prime", "downloads", 
+    "search", "wallet", "login", "signup", "robots.txt"
+  ]);
+
+  #originalPushState = null;
+  #originalReplaceState = null;
+  #isLoading = false;
+  #error = null;
+  #debouncedHandler = null;
+  #channelChangeCallbacks = new Set();
+  
+  currentUsername = null;
+  currentChannelId = null;
+
   constructor() {
-    this.currentUsername = null;
-    this.currentChannelId = null;
-    this.abortController = null;
+    if (ChannelManager.#instance) {
+      return ChannelManager.#instance;
+    }
+    ChannelManager.#instance = this;
+    
+    this.#originalPushState = window.history.pushState;
+    this.#originalReplaceState = window.history.replaceState;
+    this.#debouncedHandler = this.#debounce(this.urlChangeHandler, 250);
   }
 
-  matchChannelName(url) {
-    if (!url) return null;
-    const match = ChannelHandler.CHANNEL_REGEX.exec(url);
-    if (!match) return null;
+  static getInstance() {
+    return ChannelManager.#instance ??= new ChannelManager();
+  }
+
+  onChannelChange(callback) {
+    if (typeof callback !== 'function') {
+      throw new TypeError('Channel change callback must be a function');
+    }
+    this.#channelChangeCallbacks.add(callback);
+    return () => this.#channelChangeCallbacks.delete(callback);
+  }
+
+  #notifyChannelChange(oldChannelId, newChannelId) {
+    for (const callback of this.#channelChangeCallbacks) {
+      try {
+        callback(oldChannelId, newChannelId);
+      } catch (error) {
+        console.error("[PEEEEP] Channel change callback error:", error);
+      }
+    }
+  }
+
+  #debounce = (fn, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn(...args), delay);
+    };
+  };
+
+  shouldInitialize(url) {
+    const subdomainMatch = url.match(/^https?:\/\/([^.]+)\.twitch\.tv/);
+    const subdomain = subdomainMatch?.[1] || "";
+    return ChannelManager.#ALLOWED_SUBDOMAINS.has(subdomain);
+  }
+
+  async init() {
+    await this.urlChangeHandler();
+
+    window.history.pushState = (...args) => {
+      this.#originalPushState.apply(window.history, args);
+      this.#debouncedHandler();
+    };
+
+    window.history.replaceState = (...args) => {
+      this.#originalReplaceState.apply(window.history, args);
+      this.#debouncedHandler();
+    };
+
+    window.addEventListener("popstate", this.#debouncedHandler);
+  }
+
+  get isLoading() {
+    return this.#isLoading;
+  }
+
+  get error() {
+    return this.#error;
+  }
+
+  matchChannelName = (url = window.location.href) => {
+    const subdomainMatch = url.match(/^https?:\/\/([^.]+)\.twitch\.tv/);
+    const subdomain = subdomainMatch?.[1] || "";
     
-    const username = match[1] || match[2];
-    if (username && !ChannelHandler.IGNORED_PAGES.has(username)) {
-      return username;
+    if (!ChannelManager.#ALLOWED_SUBDOMAINS.has(subdomain)) {
+      console.log(`[PEEEEP] Ignoring non-allowed subdomain: ${subdomain}`);
+      return null;
+    }
+
+    for (const pattern of Object.values(ChannelManager.#CHANNEL_PATTERNS)) {
+      const match = pattern.exec(url);
+      if (match?.[1]) {
+        const username = match[1].toLowerCase();
+        return ChannelManager.#IGNORED_PAGES.has(username) ? null : username;
+      }
     }
     return null;
-  }
+  };
 
-  async urlChangeHandler(newUsername) {
-    if (!newUsername || newUsername === this.currentUsername) return;
-
-    // Cancel any ongoing operations
-    if (this.abortController) {
-      this.abortController.abort();
-    }
-
-    this.abortController = new AbortController();
-    const signal = this.abortController.signal;
+  #updateChannel = async (userData) => {
+    const oldChannelId = this.currentChannelId;
+    this.currentUsername = userData.username;
+    this.currentChannelId = userData.id;
 
     try {
-      const data = await Promise.race([
-        (0,_lib_js__WEBPACK_IMPORTED_MODULE_0__.getTwitchUserId)(newUsername),
-        new Promise((_, reject) => {
-          signal.addEventListener('abort', () => 
-            reject(new Error('Operation cancelled'))
-          );
-        })
-      ]);
-
-      if (signal.aborted) return;
-      
-      if (!data) {
-        throw new Error("Failed to fetch Twitch user data");
-      }
-
-      // Only update state and load emotes if we're actually changing channels
-      if (this.currentChannelId !== data.id) {
-        this.currentUsername = newUsername;
-        this.currentChannelId = data.id;
-        await (0,_emotes_js__WEBPACK_IMPORTED_MODULE_1__.loadChannelEmotes)(data);
-      }
-      
+      this.#notifyChannelChange(oldChannelId, userData.id);
+      await _emotes_js__WEBPACK_IMPORTED_MODULE_1__.emoteManager.loadChannelEmotes(userData);
     } catch (error) {
-      if (error.message !== 'Operation cancelled') {
-        // Let error propagate to global handler
-        throw error;
-      }
+      console.error("[PEEEEP] Failed to load emotes:", error);
+      throw error;
     }
-  }
+  };
 
-  cleanup() {
-    if (this.abortController) {
-      this.abortController.abort();
-      this.abortController = null;
+  urlChangeHandler = async () => {
+    this.#isLoading = true;
+    this.#error = null;
+
+    try {
+      const username = this.matchChannelName();
+      if (!username || username === this.currentUsername) return;
+
+      const userData = await (0,_lib_js__WEBPACK_IMPORTED_MODULE_0__.getTwitchUserId)(username);
+      if (!userData?.id) {
+        throw new Error(`[PEEEEP] Invalid user data for ${username}`);
+      }
+
+      if (this.currentChannelId !== userData.id) {
+        await this.#updateChannel(userData);
+      }
+    } catch (error) {
+      this.#error = error;
+      this.#resetState();
+      console.error("[PEEEEP] Channel change error:", error);
+    } finally {
+      this.#isLoading = false;
     }
+  };
+
+  #resetState = () => {
+    const oldChannelId = this.currentChannelId;
     this.currentUsername = null;
     this.currentChannelId = null;
-  }
+    if (oldChannelId) {
+      this.#notifyChannelChange(oldChannelId, null);
+    }
+  };
+
+  cleanup = () => {
+    try {
+      if (this.#originalPushState) {
+        window.history.pushState = this.#originalPushState;
+      }
+      if (this.#originalReplaceState) {
+        window.history.replaceState = this.#originalReplaceState;
+      }
+    } finally {
+      window.removeEventListener("popstate", this.#debouncedHandler);
+      this.#resetState();
+      this.#originalPushState = null;
+      this.#originalReplaceState = null;
+      this.#isLoading = false;
+      this.#error = null;
+      this.#debouncedHandler = null;
+      this.#channelChangeCallbacks.clear();
+    }
+  };
 }
 
-
+const channelManager = ChannelManager.getInstance();
 
 /***/ }),
 
@@ -457,411 +1499,188 @@ class ChannelHandler {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   OptimizedObserver: () => (/* binding */ OptimizedObserver)
+/* harmony export */   observer: () => (/* binding */ observer)
 /* harmony export */ });
 class OptimizedObserver {
-  static IGNORED_TAGS = new Set(['BR', 'HEAD', 'LINK', 'META', 'SCRIPT', 'STYLE']);
+  static #instance = null;
+  static #BATCH_SIZE = 50;
+  static #IGNORED_TAGS = new Set(['BR', 'HEAD', 'LINK', 'META', 'SCRIPT', 'STYLE', 'VIDEO']);
+  static #CALLBACK_TYPE_ERROR = new TypeError('Callback must be a function');
 
-  constructor(processCallback, options = {}) {
-    if (typeof processCallback !== "function") {
-      throw new Error("Process callback is required");
-    }
+  #queued = new Set();
+  #pending = new Set();
+  #callbacks = new Map();
+  #targets = new Map();
+  #isScheduled = false;
+  #observer = null;
+  #root = null;
 
-    this.process = processCallback;
-    this.containerAttr = options.containerAttribute || "data-observer-root";
-    this.targets = this.normalizeTargets(options.targets || []);
-    this.observer = null;
-    this.initialObserver = null;
-    this.container = null;
-    
-    const container = document.getElementById(this.containerAttr) || 
-                     document.querySelector(`[${this.containerAttr}]`);
-    if (container) {
-      this.init(container);
-    } else {
-      this.setupInitialObserver();
-    }
+  constructor() {
+    if (OptimizedObserver.#instance) return OptimizedObserver.#instance;
+    OptimizedObserver.#instance = this;
+    document.readyState === "loading" 
+      ? document.addEventListener("DOMContentLoaded", this.init, { once: true }) 
+      : this.init();
   }
 
-  normalizeTargets(targets) {
-    const normalizedTargets = new Array(targets.length);
-    for (let i = 0; i < targets.length; i++) {
-      const target = targets[i];
-      if (typeof target === "string") {
-        normalizedTargets[i] = {
-          type: "attribute",
-          value: target,
-          matches: (element) => element.hasAttribute(target)
-        };
-      } else {
-        normalizedTargets[i] = {
-          type: target.type || "attribute",
-          value: target.value,
-          matches: this.createMatcher(target)
-        };
-      }
-    }
-    return normalizedTargets;
+  static getInstance() {
+    return OptimizedObserver.#instance ??= new OptimizedObserver();
   }
 
-  createMatcher(target) {
-    switch (target.type) {
-      case "attribute":
-        return (element) => element.hasAttribute(target.value);
-      case "class":
-        return (element) => element.classList.contains(target.value);
-      case "id":
-        return (element) => element.id === target.value;
-      case "selector":
-        return (element) => element.matches(target.value);
-      default:
-        throw new Error(`Unknown target type: ${target.type}`);
-    }
-  }
-
-  elementMatchesAnyTarget(element) {
-    if (OptimizedObserver.IGNORED_TAGS.has(element.tagName)) {
-      return false;
-    }
-    
-    const len = this.targets.length;
-    for (let i = 0; i < len; i++) {
-      if (this.targets[i].matches(element)) return true;
-    }
-    return false;
-  }
-
-  getAttributeFilters() {
-    const filters = [];
-    const len = this.targets.length;
-    for (let i = 0; i < len; i++) {
-      if (this.targets[i].type === "attribute") {
-        filters.push(this.targets[i].value);
-      }
-    }
-    return filters;
-  }
-
-  setupInitialObserver() {
-    if (this.initialObserver) {
-      this.initialObserver.disconnect();
-    }
-
-    this.initialObserver = new MutationObserver((mutations, observer) => {
-      const len = mutations.length;
-      for (let i = 0; i < len; i++) {
-        const mutation = mutations[i];
-        const container = mutation.type === "childList" ? 
-          document.getElementById(this.containerAttr) || document.querySelector(`[${this.containerAttr}]`) :
-          (mutation.type === "attributes" && 
-           mutation.attributeName === this.containerAttr ? 
-           mutation.target : null);
-
-        if (container) {
-          observer.disconnect();
-          this.initialObserver = null;
-          this.init(container);
-          break;
-        }
-      }
+  init = () => {
+    this.#root = document.body;
+    this.#observer = new MutationObserver(this.#handleMutations);
+    this.#observer.observe(this.#root, {
+      childList: true, subtree: true, attributes: true,
+      attributeFilter: Array.from(this.#targets.values())
+        .filter(t => t.type === 'attribute')
+        .map(t => t.value),
+      attributeOldValue: false
     });
+  };
 
-    this.initialObserver.observe(document, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: [this.containerAttr]
-    });
-  }
-
-  processExistingElements(container) {
-    const elements = new Set();
-    const targetsLen = this.targets.length;
-    
-    for (let i = 0; i < targetsLen; i++) {
-      const target = this.targets[i];
-      let foundElements;
-      
-      if (target.type === "selector") {
-        foundElements = container.querySelectorAll(target.value);
-      } else if (target.type === "id") {
-        const element = document.getElementById(target.value);
-        foundElements = element ? [element] : [];
-      } else if (target.type === "class") {
-        foundElements = container.getElementsByClassName(target.value);
-      } else {
-        foundElements = container.querySelectorAll(`[${target.value}]`);
-      }
-
-      const elementsLen = foundElements.length;
-      for (let j = 0; j < elementsLen; j++) {
-        const element = foundElements[j];
-        if (!OptimizedObserver.IGNORED_TAGS.has(element.tagName) && 
-            this.elementMatchesAnyTarget(element)) {
-          elements.add(element);
-        }
-      }
+  #normalizeSelector(selector) {
+    if (selector[0] === '#') {
+      return {
+        type: 'id', value: selector.slice(1),
+        getElements: () => document.getElementById(selector.slice(1))
+      };
     }
-
-    if (elements.size) {
-      for (const element of elements) {
-        try {
-          this.process(element);
-        } catch (e) {
-          console.error("Error processing element:", e);
-        }
-      }
+    if (selector[0] === '.') {
+      return {
+        type: 'class', value: selector.slice(1),
+        getElements: root => root.getElementsByClassName(selector.slice(1))
+      };
     }
-
-    return elements.size > 0;
-  }
-
-  processAddedNode(node, elements) {
-    if (node.nodeType === Node.ELEMENT_NODE && 
-        !OptimizedObserver.IGNORED_TAGS.has(node.tagName)) {
-      
-      if (this.elementMatchesAnyTarget(node)) {
-        elements.add(node);
-      }
-
-      const targetsLen = this.targets.length;
-      for (let i = 0; i < targetsLen; i++) {
-        const target = this.targets[i];
-        let foundElements;
-        
-        if (target.type === "id") {
-          const element = document.getElementById(target.value);
-          foundElements = element ? [element] : [];
-        } else if (target.type === "class") {
-          foundElements = node.getElementsByClassName(target.value);
-        } else if (target.type === "selector") {
-          foundElements = node.querySelectorAll(target.value);
-        } else {
-          foundElements = node.querySelectorAll(`[${target.value}]`);
-        }
-
-        const elementsLen = foundElements.length;
-        for (let j = 0; j < elementsLen; j++) {
-          const element = foundElements[j];
-          if (!OptimizedObserver.IGNORED_TAGS.has(element.tagName) && 
-              this.elementMatchesAnyTarget(element)) {
-            elements.add(element);
-          }
-        }
-      }
+    if (selector.includes('[')) {
+      const value = selector.slice(selector.indexOf('[') + 1, selector.indexOf(']'));
+      return {
+        type: 'attribute', value,
+        getElements: root => root.querySelectorAll(`[${value}]`)
+      };
     }
-  }
-
-  init(container) {
-    if (this.observer) {
-      this.disconnect();
-    }
-
-    this.container = container;
-    this.processExistingElements(container);
-
-    this.observer = new MutationObserver(mutations => {
-      const elements = new Set();
-      const mutationsLen = mutations.length;
-
-      for (let i = 0; i < mutationsLen; i++) {
-        const mutation = mutations[i];
-        if (mutation.type === "childList") {
-          const nodesLen = mutation.addedNodes.length;
-          for (let j = 0; j < nodesLen; j++) {
-            this.processAddedNode(mutation.addedNodes[j], elements);
-          }
-        } else if (mutation.type === "attributes" || mutation.type === "class") {
-          if (!OptimizedObserver.IGNORED_TAGS.has(mutation.target.tagName) && 
-              this.elementMatchesAnyTarget(mutation.target)) {
-            elements.add(mutation.target);
-          }
-        }
-      }
-
-      if (elements.size) {
-        for (const element of elements) {
-          try {
-            this.process(element);
-          } catch (e) {
-            console.error("Error processing element:", e);
-          }
-        }
-      }
-    });
-
-    this.observer.observe(container, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: this.getAttributeFilters(),
-      attributeOldValue: false,
-      classes: true
-    });
-  }
-
-  disconnect() {
-    if (this.initialObserver) {
-      this.initialObserver.disconnect();
-      this.initialObserver = null;
-    }
-    
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null;
-    }
-
-    this.container = null;
-    this.process = null;
-    this.targets = [];
-  }
-
-  reconnect() {
-    if (!this.container || !this.process) {
-      throw new Error("Cannot reconnect - observer was fully disconnected");
-    }
-    this.init(this.container);
-  }
-}
-
-
-
-/***/ }),
-
-/***/ "./lib/processor.js":
-/*!**************************!*\
-  !*** ./lib/processor.js ***!
-  \**************************/
-/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
-
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   ChatProcessor: () => (/* binding */ ChatProcessor)
-/* harmony export */ });
-/* harmony import */ var _emotes_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./emotes.js */ "./lib/emotes.js");
-
-
-class ChatProcessor {
-  static hasEmotes(container) {
-    return container.querySelector(".chat-line__message--emote-button") !== null || (0,_emotes_js__WEBPACK_IMPORTED_MODULE_0__.containsEmote)(container);
-  }
-
-  createNormalizedEmote(originalImg) {
-    const normalizedImg = document.createElement("img");
-    normalizedImg.src = originalImg.src;
-    normalizedImg.alt = originalImg.alt;
-    normalizedImg.className = "simple-emote-extension";
-    
-    if (originalImg.closest(".chat-line__message--emote-button")) {
-      normalizedImg.dataset.officialEmote = "true";
-    }
-    
-    return normalizedImg;
-  }
-
-  processTextFragment(element, fragment) {
-    // Special handling for links
-    if (element.querySelector("a")) {
-      const newElement = document.createElement(element.tagName || "span");
-      // Use textContent instead of innerHTML for better performance/security
-      newElement.textContent = element.textContent;
-      fragment.appendChild(newElement);
-      return fragment;
-    }
-
-    const text = element.textContent;
-    const words = text.split(/\s+/);
-    let modifierContainer = null;
-
-    const closeModifierContainer = () => {
-      if (modifierContainer) {
-        fragment.appendChild(modifierContainer);
-        modifierContainer = null;
-      }
+    return {
+      type: 'tag', value: selector,
+      getElements: root => root.getElementsByTagName(selector)
     };
+  }
 
-    words.forEach((word, index) => {
-      const emote = (0,_emotes_js__WEBPACK_IMPORTED_MODULE_0__.getEmote)(word);
-
-      if (emote) {
-        const img = (0,_emotes_js__WEBPACK_IMPORTED_MODULE_0__.createBaseEmoteImage)(emote.name, emote.url, emote.modifier);
-
-        if (emote.modifier) {
-          if (!modifierContainer) {
-            const lastElement = fragment.lastElementChild;
-            if (lastElement?.classList?.contains("simple-emote-extension")) {
-              modifierContainer = document.createElement("div");
-              modifierContainer.classList.add("modifier-container");
-              modifierContainer.appendChild(lastElement);
+  #handleMutations = mutations => {
+    let count = 0;
+    for (let i = 0; i < mutations.length; i++) {
+      const mutation = mutations[i];
+      if (mutation.type === "childList") {
+        for (let j = 0; j < mutation.addedNodes.length; j++) {
+          const node = mutation.addedNodes[j];
+          if (node.nodeType === Node.ELEMENT_NODE && 
+              node.isConnected && 
+              !OptimizedObserver.#IGNORED_TAGS.has(node.tagName)) {
+            this.#pending.add(node);
+            if (++count >= OptimizedObserver.#BATCH_SIZE) {
+              this.#scheduleProcessing();
+              count = 0;
             }
           }
-
-          if (modifierContainer) {
-            modifierContainer.appendChild(img);
-          } else {
-            fragment.appendChild(img);
-          }
-        } else {
-          closeModifierContainer();
-          fragment.appendChild(img);
         }
-      } else {
-        closeModifierContainer();
-        fragment.appendChild(document.createTextNode(word));
+      } else if (mutation.type === "attributes" && 
+                 mutation.target.nodeType === Node.ELEMENT_NODE &&
+                 !OptimizedObserver.#IGNORED_TAGS.has(mutation.target.tagName)) {
+        this.#pending.add(mutation.target);
+        if (++count >= OptimizedObserver.#BATCH_SIZE) {
+          this.#scheduleProcessing();
+          count = 0;
+        }
       }
+    }
+    if (count > 0) this.#scheduleProcessing();
+  };
 
-      if (index < words.length - 1) {
-        fragment.appendChild(document.createTextNode(" "));
+  #scheduleProcessing = () => {
+    if (!this.#isScheduled) {
+      this.#isScheduled = true;
+      requestAnimationFrame(this.#processQueue);
+    }
+  };
+
+  #processQueue = () => {
+    this.#isScheduled = false;
+    if (!this.#pending.size) return;
+
+    [this.#queued, this.#pending] = [this.#pending, this.#queued];
+    this.#pending.clear();
+
+    for (const element of this.#queued) {
+      if (!element.isConnected) continue;
+
+      for (const [selector, callbacks] of this.#callbacks) {
+        try {
+          const target = this.#targets.get(selector);
+          const matches = target.getElements(element);
+          
+          if (!matches) continue;
+          
+          const elements = matches.length !== undefined ? matches : [matches];
+          for (let i = 0; i < elements.length; i++) {
+            const match = elements[i];
+            if (match?.isConnected && !OptimizedObserver.#IGNORED_TAGS.has(match.tagName)) {
+              for (const callback of callbacks) {
+                try {
+                  callback(match);
+                } catch (error) {
+                  console.error(`[Observer] Callback error for ${selector}:`, error);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`[Observer] Processing error for ${selector}:`, error);
+        }
       }
-    });
+    }
 
-    closeModifierContainer();
-    return fragment;
+    this.#queued.clear();
+    if (this.#pending.size > 0) this.#scheduleProcessing();
+  };
+
+  subscribe(selector, callback) {
+    if (typeof callback !== 'function') throw OptimizedObserver.#CALLBACK_TYPE_ERROR;
+
+    if (!this.#targets.has(selector)) {
+      this.#targets.set(selector, this.#normalizeSelector(selector));
+    }
+
+    const callbacks = this.#callbacks.get(selector) ?? new Set();
+    callbacks.add(callback);
+    this.#callbacks.set(selector, callbacks);
+    
+    return () => {
+      const cbs = this.#callbacks.get(selector);
+      if (cbs?.delete(callback) && !cbs.size) {
+        this.#callbacks.delete(selector);
+        this.#targets.delete(selector);
+      }
+    };
   }
 
-  process(container) {
-    if (!ChatProcessor.hasEmotes(container)) return;
+  clearPending() {
+    this.#queued.clear();
+    this.#pending.clear();
+    this.#isScheduled = false;
+  }
 
-    const fragment = document.createDocumentFragment();
-    const nodes = container.childNodes;
-    let hasProcessedNodes = false;
-
-    for (let i = 0; i < nodes.length; i++) {
-      const child = nodes[i];
-
-      if (child.nodeType === 1) { // ELEMENT_NODE
-        if (child.classList.contains("text-fragment")) {
-          hasProcessedNodes = true;
-          this.processTextFragment(child, fragment);
-        } else if (child.classList.contains("chat-line__message--emote-button")) {
-          hasProcessedNodes = true;
-          const img = child.querySelector("img.chat-image.chat-line__message--emote");
-          if (img) {
-            const normalizedImg = this.createNormalizedEmote(img);
-            fragment.appendChild(normalizedImg);
-          }
-        } else {
-          const newElement = document.createElement(child.tagName || "div");
-          // Replace Array.from with direct iteration
-          for (const attr of child.attributes) {
-            newElement.setAttribute(attr.name, attr.value);
-          }
-          newElement.textContent = child.textContent;
-          fragment.appendChild(newElement);
-          hasProcessedNodes = true;
-        }
-      } else if (hasProcessedNodes) {
-        fragment.appendChild(document.createTextNode(child.textContent));
-      }
-    }
-
-    if (hasProcessedNodes) {
-      container.replaceChildren(fragment);
-    }
+  cleanup() {
+    this.#observer?.disconnect();
+    this.#observer = this.#root = null;
+    this.#callbacks.clear();
+    this.#targets.clear();
+    this.#queued.clear();
+    this.#pending.clear();
+    this.#isScheduled = false;
+    OptimizedObserver.#instance = null;
   }
 }
 
-
+const observer = OptimizedObserver.getInstance();
 
 /***/ }),
 
@@ -873,183 +1692,201 @@ class ChatProcessor {
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   addStyles: () => (/* binding */ addStyles),
-/* harmony export */   removeStyles: () => (/* binding */ removeStyles),
-/* harmony export */   tooltipStyles: () => (/* binding */ tooltipStyles)
+/* harmony export */   styleManager: () => (/* binding */ styleManager)
 /* harmony export */ });
-// Unique identifier for our style element
-const STYLE_ID = 'simple-emote-extension-styles';
-
-// Main styles definition
-const tooltipStyles = `
-  .modifier-container {
-    display: unset;
-    display: inline-grid;
-    justify-items: center;
-    align-items: center;
-    vertical-align: middle;
-  }
-
-  .modifier-container img {
-    grid-area: 1 / 1;
-    width: min-content;
-    height: min-content;
-  }
-
-  .simple-emote-extension {
-    vertical-align: middle;
-    display: inline-block;
-    cursor: pointer;
-  }
-
-  .modifier {
-    z-index: 1;
-  }
-
-  .emote-tooltip {
-    position: absolute;
-    background-color: rgba(28, 28, 28, 0.95);
-    color: white;
-    border-radius: 6px;
-    font-size: 12px;
-    z-index: 1000;
-    text-align: center;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    min-width: 200px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transform: translateZ(0); /* Force GPU acceleration */
-  }
-
-  .tooltip-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 6px 6px 0 0;
-    user-select: none;
-    vertical-align: middle;
-  }
-
-  .tooltip-drag-handle {
-    cursor: grab;
-    padding: 0 8px;
-    color: #888;
-    user-select: none;
-    touch-action: none;
-  }
-
-  .tooltip-close {
-    cursor: pointer;
-    padding: 8px 12px;  /* Increased padding */
-    margin: -8px -12px; /* Negative margin to offset padding */
-    font-size: 18px;
-    color: #888;
-    transition: color 0.2s;
-    user-select: none;
-    position: relative;  /* For pseudo-element positioning */
-    vertical-align: middle;
-  }
-
-  .tooltip-close::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    margin: -5px;
-    vertical-align: middle;
-  }
-
-  .tooltip-close:hover {
-    color: red;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tooltip-close {
-      transition: none;
-    }
-  }
-
-  .tooltip-content {
-    padding: 12px;
-    overscroll-behavior: contain;
-  }
-
-  .emote-preview {
-    padding: 5px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .emote-preview img {
-    will-change: transform, opacity;
-  }
-
-  .emote-info {
-    margin-top: 5px;
-    user-select: text;
-  }
-
-  .emote-name {
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 2px;
-  }
-
-  .emote-service {
-    font-size: 12px;
-    color: #888;
-  }
-
-  .chat-scrollable-area__message-container > *:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tooltip-close {
-      transition: none;
-    }
-  }
-`;
-
-// Style injection with cleanup capability
 class StyleManager {
+  static #instance = null;
+  static #STYLE_ID = 'peeeep-styles';
+
+  #styleElement = null;
+  
+  #tooltipStyles = `
+    .modifier-container {
+      display: unset;
+      display: inline-grid;
+      justify-items: center;
+      align-items: center;
+      vertical-align: middle;
+    }
+    .modifier-container img {
+      grid-area: 1 / 1;
+      width: min-content; 
+      height: min-content;
+    }
+    .peeeep {
+      vertical-align: middle;
+      display: inline-block;
+      cursor: pointer;
+    }
+    .modifier {
+      z-index: 1;
+    }
+    .emote-tooltip {
+      position: absolute;
+      background-color: rgba(28, 28, 28, 0.95);
+      color: white;
+      border-radius: 6px;
+      font-size: 12px;
+      z-index: 1000;
+      text-align: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      min-width: 200px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: translateZ(0);
+    }
+    .tooltip-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 6px 6px 0 0;
+      user-select: none;
+      vertical-align: middle;
+    }
+    .tooltip-drag-handle {
+      cursor: grab;
+      padding: 0 8px;
+      color: #888;
+      user-select: none;
+      touch-action: none;
+    }
+    .tooltip-drag-handle.is-dragging {
+      cursor: grabbing;
+    }
+    .tooltip-close {
+      cursor: pointer;
+      padding: 8px 12px;
+      margin: -8px -12px;
+      font-size: 18px;
+      color: #888;
+      transition: color 0.2s;
+      user-select: none;
+      position: relative;
+      vertical-align: middle;
+    }
+    .tooltip-close::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      margin: -5px;
+      vertical-align: middle;
+    }
+    .tooltip-close:hover {
+      color: red;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tooltip-close {
+        transition: none;
+      }
+    }
+    .tooltip-content {
+      padding: 12px;
+      overscroll-behavior: contain;
+    }
+    .emote-preview {
+      padding: 5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 112px;
+      position: relative;
+    }
+    .emote-preview-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 8px;
+      min-height: 112px;
+    }
+    .emote-loading-spinner {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 256px;
+      height: 256px;
+      object-fit: contain;
+    }
+    .emote-preview-img {
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      max-width: 100%;
+      max-height: 112px;
+      object-fit: contain;
+    }
+    .emote-preview-img.is-loaded {
+      opacity: 1;
+    }
+    .emote-info {
+      margin-top: 5px;
+      user-select: text;
+    }
+    .emote-name {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+    .emote-service {
+      font-size: 12px;
+      color: #888;
+    }
+    .chat-scrollable-area__message-container > *:nth-child(even) {
+      background-color: rgba(128, 128, 128, 0.1);
+    }
+    
+    .mention-fragment {
+      font-weight: 700 !important;
+      background: transparent !important;
+    }
+
+    .chat-image, .chat-line__message--emote {
+     height: 32px !important;
+     width: 32px !important;
+    }
+
+  `;
+
   constructor() {
-    this.styleElement = null;
+    if (StyleManager.#instance) {
+      return StyleManager.#instance;
+    }
+    StyleManager.#instance = this;
   }
 
-  injectStyles() {
-    // Remove any existing style element first
-    this.removeStyles();
-
-    // Create and inject new style element
-    this.styleElement = document.createElement('style');
-    this.styleElement.id = STYLE_ID;
-    this.styleElement.textContent = tooltipStyles;
-    document.head.appendChild(this.styleElement);
+  static getInstance() {
+    return StyleManager.#instance ??= new StyleManager();
   }
 
-  removeStyles() {
-    const existingStyle = document.getElementById(STYLE_ID);
+  async init() {
+    this.#removeStyles();
+    this.#styleElement = document.createElement('style');
+    this.#styleElement.id = StyleManager.#STYLE_ID;
+    this.#styleElement.textContent = this.#tooltipStyles;
+    document.head.appendChild(this.#styleElement);
+  }
+
+  #removeStyles() {
+    const existingStyle = document.getElementById(StyleManager.#STYLE_ID);
     if (existingStyle) {
       existingStyle.remove();
     }
-    this.styleElement = null;
+    this.#styleElement = null;
+  }
+
+  cleanup() {
+    this.#removeStyles();
   }
 }
 
-// Create singleton instance
-const styleManager = new StyleManager();
-
-// Export functions that use the singleton
-const addStyles = () => styleManager.injectStyles();
-const removeStyles = () => styleManager.removeStyles();
-
-
+const styleManager = StyleManager.getInstance();
 
 /***/ }),
 
@@ -1061,20 +1898,35 @@ const removeStyles = () => styleManager.removeStyles();
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   Tooltip: () => (/* binding */ Tooltip)
+/* harmony export */   tooltipManager: () => (/* binding */ tooltipManager)
 /* harmony export */ });
 /* harmony import */ var _emotes_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./emotes.js */ "./lib/emotes.js");
 /* harmony import */ var _loaderGif_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./loaderGif.js */ "./lib/loaderGif.js");
 
 
 
-class Tooltip {
+class TooltipManager {
+  static #instance = null;
+
+  #tooltip = null;
+  #isActive = false;
+  #isDragging = false;
+  #dragOffset = { x: 0, y: 0 };
+  #cleanupDragListeners = null;
+  #removeListeners = null;
+
   constructor() {
-    this.tooltip = null;
-    this.isActive = false;
-    this.isDragging = false;
-    this.dragOffset = { x: 0, y: 0 };
-    this.cleanupDragListeners = null;
+    if (TooltipManager.#instance) {
+      return TooltipManager.#instance;
+    }
+    TooltipManager.#instance = this;
+  }
+
+  static getInstance() {
+    return TooltipManager.#instance ??= new TooltipManager();
+  }
+
+  async init() {
     this.setupListeners();
   }
 
@@ -1093,20 +1945,21 @@ class Tooltip {
     const header = this.createElement("div", "tooltip-header");
     const handle = this.createElement("div", "tooltip-drag-handle", "⋮⋮");
     const close = this.createElement("div", "tooltip-close", "×");
-
     header.append(handle, close);
     return header;
   }
 
   getEmoteInfo(emoteElement) {
-    const emoteInfo = (0,_emotes_js__WEBPACK_IMPORTED_MODULE_0__.getEmote)(emoteElement.getAttribute("alt"));
+    const emoteInfo = _emotes_js__WEBPACK_IMPORTED_MODULE_0__.emoteManager.getEmote(emoteElement.getAttribute("alt"));
+    
     if (emoteInfo) {
       return emoteInfo;
     }
 
-    if (emoteElement.dataset.officialEmote === "true") {
-      const currentUrl = emoteElement.src;
-      const bigUrl = currentUrl.replace("/1.0", "/3.0");
+    const currentUrl = emoteElement.src;
+
+    if (currentUrl.includes("static-cdn.jtvnw.net/emoticons/v2")) {
+      const bigUrl = currentUrl.replace("/1.0", "/4.0");
 
       return {
         name: emoteElement.alt,
@@ -1121,22 +1974,8 @@ class Tooltip {
 
   createEmoteContent(emote) {
     const content = this.createElement("div", "emote-content");
-
     const preview = this.createElement("div", "emote-preview");
-    preview.style.cssText = "min-height: 112px; position: relative;";
-
     const imgContainer = this.createElement("div", "emote-preview-container");
-    imgContainer.style.cssText = `
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 8px;
-      min-height: 112px;
-    `;
-
     const info = this.createElement("div", "emote-info");
     const name = this.createElement("div", "emote-name", emote.name);
     const service = this.createElement(
@@ -1148,37 +1987,39 @@ class Tooltip {
 
     const spinner = this.createElement("img", "emote-loading-spinner");
     spinner.src = _loaderGif_js__WEBPACK_IMPORTED_MODULE_1__.LOADER_GIF;
-    spinner.style.cssText = `
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: 256px;
-      height: 256px;
-      object-fit: contain;
-    `;
+
+    if (_loaderGif_js__WEBPACK_IMPORTED_MODULE_1__.LOADER_GIF.width && _loaderGif_js__WEBPACK_IMPORTED_MODULE_1__.LOADER_GIF.height) {
+      spinner.width = _loaderGif_js__WEBPACK_IMPORTED_MODULE_1__.LOADER_GIF.width;
+      spinner.height = _loaderGif_js__WEBPACK_IMPORTED_MODULE_1__.LOADER_GIF.height;
+    }
+
     imgContainer.appendChild(spinner);
 
     const img = this.createElement("img", "emote-preview-img");
-    img.style.cssText = `
-      opacity: 0;
-      transition: opacity 0.15s ease;
-      max-width: 100%;
-      max-height: 112px;
-      object-fit: contain;
-    `;
     img.src = emote.bigUrl;
     img.alt = emote.name;
 
+    if (emote.isOfficial) {
+      img.width = 112;
+      img.height = 112;
+      imgContainer.style.width = "112px";
+      imgContainer.style.height = "112px";
+    }
+
     img.onload = () => {
-      img.style.opacity = "1";
+      img.classList.add("is-loaded");
       spinner.remove();
     };
 
     img.onerror = () => {
       spinner.remove();
-      img.style.opacity = "1";
+      img.classList.add("is-loaded");
       img.src = emote.url;
+
+      if (emote.isOfficial) {
+        img.width = 112;
+        img.height = 112;
+      }
     };
 
     imgContainer.appendChild(img);
@@ -1189,8 +2030,8 @@ class Tooltip {
   }
 
   createTooltip(emotes) {
-    if (this.tooltip) {
-      const content = this.tooltip.querySelector(".tooltip-content");
+    if (this.#tooltip) {
+      const content = this.#tooltip.querySelector(".tooltip-content");
       content.textContent = "";
       emotes.forEach((emote) => {
         const emoteInfo = this.getEmoteInfo(emote);
@@ -1198,7 +2039,7 @@ class Tooltip {
           content.appendChild(this.createEmoteContent(emoteInfo));
         }
       });
-      return this.tooltip;
+      return this.#tooltip;
     }
 
     const tooltip = this.createElement(
@@ -1221,13 +2062,13 @@ class Tooltip {
 
   positionTooltip(element) {
     const rect = element.getBoundingClientRect();
-    const tooltipRect = this.tooltip.getBoundingClientRect();
+    const tooltipRect = this.#tooltip.getBoundingClientRect();
 
     const x = Math.max(0, rect.left - tooltipRect.width - 5);
     const y = Math.max(0, rect.top - tooltipRect.height - 5);
 
-    this.tooltip.style.left = `${x}px`;
-    this.tooltip.style.top = `${y}px`;
+    this.#tooltip.style.left = `${x}px`;
+    this.#tooltip.style.top = `${y}px`;
   }
 
   setupDragging(tooltip) {
@@ -1236,27 +2077,27 @@ class Tooltip {
     const startDrag = (e) => {
       if (e.button !== 0) return;
       e.stopPropagation();
-      this.isDragging = true;
+      this.#isDragging = true;
       const rect = tooltip.getBoundingClientRect();
-      this.dragOffset = {
+      this.#dragOffset = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       };
-      handle.style.cursor = "grabbing";
+      handle.classList.add("is-dragging");
     };
 
     const stopDrag = (e) => {
       if (e) e.stopPropagation();
-      this.isDragging = false;
-      handle.style.cursor = "grab";
+      this.#isDragging = false;
+      handle.classList.remove("is-dragging");
     };
 
     const drag = (e) => {
-      if (!this.isDragging) return;
+      if (!this.#isDragging) return;
       e.stopPropagation();
 
-      const x = e.clientX - this.dragOffset.x;
-      const y = e.clientY - this.dragOffset.y;
+      const x = e.clientX - this.#dragOffset.x;
+      const y = e.clientY - this.#dragOffset.y;
 
       const rect = tooltip.getBoundingClientRect();
       const maxX = window.innerWidth - rect.width;
@@ -1274,13 +2115,13 @@ class Tooltip {
       handle.removeEventListener("mousedown", startDrag);
       document.removeEventListener("mouseup", stopDrag);
       document.removeEventListener("mousemove", drag);
-      this.isDragging = false;
+      this.#isDragging = false;
     };
   }
 
   setupListeners() {
     const handleClick = (e) => {
-      const emoteElement = e.target.closest(".simple-emote-extension");
+      const emoteElement = e.target.closest(".peeeep");
 
       if (!emoteElement) {
         if (!e.target.closest(".emote-tooltip")) {
@@ -1295,7 +2136,7 @@ class Tooltip {
     };
 
     const handleEscape = (e) => {
-      if (e.key === "Escape" && this.isActive) {
+      if (e.key === "Escape" && this.#isActive) {
         e.stopPropagation();
         this.hide();
       }
@@ -1304,7 +2145,7 @@ class Tooltip {
     document.body.addEventListener("click", handleClick, true);
     document.addEventListener("keydown", handleEscape, true);
 
-    this._removeListeners = () => {
+    this.#removeListeners = () => {
       document.body.removeEventListener("click", handleClick, true);
       document.removeEventListener("keydown", handleEscape, true);
     };
@@ -1315,21 +2156,21 @@ class Tooltip {
 
     const modifierContainer = element.closest(".modifier-container");
     const emotes = modifierContainer
-      ? [...modifierContainer.querySelectorAll(".simple-emote-extension")]
+      ? [...modifierContainer.querySelectorAll(".peeeep")]
       : [element];
 
-    this.tooltip = this.createTooltip(emotes);
+    this.#tooltip = this.createTooltip(emotes);
 
-    if (!this.tooltip.isConnected) {
-      document.body.appendChild(this.tooltip);
+    if (!this.#tooltip.isConnected) {
+      document.body.appendChild(this.#tooltip);
     }
 
     this.positionTooltip(element);
-    this.isActive = true;
+    this.#isActive = true;
 
-    this.cleanupDragListeners = this.setupDragging(this.tooltip);
+    this.#cleanupDragListeners = this.setupDragging(this.#tooltip);
 
-    const closeBtn = this.tooltip.querySelector(".tooltip-close");
+    const closeBtn = this.#tooltip.querySelector(".tooltip-close");
     closeBtn.onclick = (e) => {
       e.stopPropagation();
       this.hide();
@@ -1337,29 +2178,35 @@ class Tooltip {
   }
 
   hide() {
-    if (this.cleanupDragListeners) {
-      this.cleanupDragListeners();
-      this.cleanupDragListeners = null;
+    if (this.#cleanupDragListeners) {
+      this.#cleanupDragListeners();
+      this.#cleanupDragListeners = null;
     }
 
-    if (this.tooltip?.isConnected) {
-      this.tooltip.remove();
+    if (this.#tooltip?.isConnected) {
+      this.#tooltip.remove();
     }
 
-    this.tooltip = null;
-    this.isActive = false;
-    this.isDragging = false;
-    this.dragOffset = { x: 0, y: 0 };
+    this.#tooltip = null;
+    this.#isActive = false;
+    this.#isDragging = false;
+    this.#dragOffset = { x: 0, y: 0 };
   }
 
-  destroy() {
+  cleanupChannel() {
     this.hide();
-    if (this._removeListeners) {
-      this._removeListeners();
-      this._removeListeners = null;
+  }
+  
+  cleanup() {
+    this.hide();
+    if (this.#removeListeners) {
+      this.#removeListeners();
+      this.#removeListeners = null;
     }
   }
 }
+
+const tooltipManager = TooltipManager.getInstance();
 
 /***/ })
 
@@ -1426,12 +2273,13 @@ var __webpack_exports__ = {};
   !*** ./main.js ***!
   \*****************/
 __webpack_require__.r(__webpack_exports__);
-/* harmony import */ var _lib_observer_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./lib/observer.js */ "./lib/observer.js");
-/* harmony import */ var _lib_navigation_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./lib/navigation.js */ "./lib/navigation.js");
-/* harmony import */ var _lib_emotes_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./lib/emotes.js */ "./lib/emotes.js");
-/* harmony import */ var _lib_processor_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./lib/processor.js */ "./lib/processor.js");
-/* harmony import */ var _lib_tooltip_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./lib/tooltip.js */ "./lib/tooltip.js");
-/* harmony import */ var _lib_styles_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./lib/styles.js */ "./lib/styles.js");
+/* harmony import */ var _lib_styles_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./lib/styles.js */ "./lib/styles.js");
+/* harmony import */ var _lib_tooltip_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./lib/tooltip.js */ "./lib/tooltip.js");
+/* harmony import */ var _lib_chat_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./lib/chat.js */ "./lib/chat.js");
+/* harmony import */ var _lib_navigation_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./lib/navigation.js */ "./lib/navigation.js");
+/* harmony import */ var _lib_emotes_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./lib/emotes.js */ "./lib/emotes.js");
+/* harmony import */ var _lib_input_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./lib/input.js */ "./lib/input.js");
+/* harmony import */ var _lib_mentions_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./lib/mentions.js */ "./lib/mentions.js");
 
 
 
@@ -1439,95 +2287,64 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-// Debug mode setting
-const DEBUG = true;
 
-// Current Channel Name FIX LATER
+console.log("[PEEEEP] Starting initialization at", window.location.href);
 
-let currentChannel = "";
-
-// Create chat processor instance
-const chatProcessor = new _lib_processor_js__WEBPACK_IMPORTED_MODULE_3__.ChatProcessor();
-
-// Create Channel Handler
-
-const channelHandler = new _lib_navigation_js__WEBPACK_IMPORTED_MODULE_1__.ChannelHandler();
-
-// Process chat message body
-const processChatMessage = (element) => {
-  chatProcessor.process(element);
-};
-
-// Process channel title
-const processChannelTitle = async () => {
-  const username = channelHandler.matchChannelName(window.location.href);
-  if (username && currentChannel !== username) {
-    currentChannel = username;
-    await channelHandler.urlChangeHandler(username);
-  }
-};
-
-// Create observer instance
-const observer = new _lib_observer_js__WEBPACK_IMPORTED_MODULE_0__.OptimizedObserver(
-  (element) => {
-    if (element.matches('[data-a-target="chat-line-message-body"]')) {
-      processChatMessage(element);
-    } else if (element.matches("h1.tw-title")) {
-      processChannelTitle(element);
+const initializeApp = async () => {
+  try {
+    if (!_lib_navigation_js__WEBPACK_IMPORTED_MODULE_3__.channelManager.shouldInitialize(window.location.href)) {
+      console.log(`[PEEEEP] Skipping ${window.location.href}`);
+      return;
     }
-  },
-  {
-    containerAttribute: "data-observer-root",
-    targets: [
-      {
-        type: "selector",
-        value: `[data-a-target="chat-line-message-body"]`,
-      },
-      {
-        type: "selector",
-        value: "h1.tw-title",
-      },
-    ],
-    batchSize: 10,
-  }
-);
 
-// Set up initial observer
-const setupObserver = async () => {
-  // Add styles first
-  (0,_lib_styles_js__WEBPACK_IMPORTED_MODULE_5__.addStyles)();
+    await _lib_styles_js__WEBPACK_IMPORTED_MODULE_0__.styleManager.init();
+    console.log("[PEEEEP] Style manager initialized");
+    
+    await _lib_chat_js__WEBPACK_IMPORTED_MODULE_2__.chatManager.init();
+    console.log("[PEEEEP] Chat manager initialized");
+    
+    await _lib_emotes_js__WEBPACK_IMPORTED_MODULE_4__.emoteManager.init();
+    console.log("[PEEEEP] Emote manager initialized");
 
-  // Initialize emotes
-  await (0,_lib_emotes_js__WEBPACK_IMPORTED_MODULE_2__.initializeEmotes)();
+    await _lib_tooltip_js__WEBPACK_IMPORTED_MODULE_1__.tooltipManager.init();
+    console.log("[PEEEEP] Tooltip manager initialized");
+    
+    await _lib_mentions_js__WEBPACK_IMPORTED_MODULE_6__.usernameColorManager.init();
+    console.log("[PEEEEP] Username color manager initialized");
+    
+    await _lib_input_js__WEBPACK_IMPORTED_MODULE_5__.emoteAutocomplete.init();
+    console.log("[PEEEEP] Autocomplete manager initialized");
 
-  // Setup tooltips
-  new _lib_tooltip_js__WEBPACK_IMPORTED_MODULE_4__.Tooltip();
+    _lib_navigation_js__WEBPACK_IMPORTED_MODULE_3__.channelManager.onChannelChange((oldChannelId, newChannelId) => {      
+      if (oldChannelId && newChannelId && oldChannelId !== newChannelId) {
+        _lib_chat_js__WEBPACK_IMPORTED_MODULE_2__.chatManager.cleanupChannel?.();
+        _lib_tooltip_js__WEBPACK_IMPORTED_MODULE_1__.tooltipManager.cleanupChannel?.();
+        _lib_input_js__WEBPACK_IMPORTED_MODULE_5__.emoteAutocomplete.cleanupChannel?.();
+        _lib_mentions_js__WEBPACK_IMPORTED_MODULE_6__.usernameColorManager.cleanupChannel?.();
+        _lib_emotes_js__WEBPACK_IMPORTED_MODULE_4__.emoteManager.cleanupChannel?.();
+      }
+    });
 
-  // Add the observer root attribute to document.body
-  document.body.setAttribute("data-observer-root", "");
+    await _lib_navigation_js__WEBPACK_IMPORTED_MODULE_3__.channelManager.init();
+    
+    console.log("[PEEEEP] Channel manager initialized");
 
-  // Process initial channel if we're on a channel page
-  const username = channelHandler.matchChannelName(window.location.href);
-  if (username) {
-    await channelHandler.urlChangeHandler(username);
-  }
+    window.addEventListener("unload", () => {
+      _lib_navigation_js__WEBPACK_IMPORTED_MODULE_3__.channelManager.cleanup();
+      _lib_chat_js__WEBPACK_IMPORTED_MODULE_2__.chatManager.cleanup();
+      _lib_tooltip_js__WEBPACK_IMPORTED_MODULE_1__.tooltipManager.cleanup();
+      _lib_styles_js__WEBPACK_IMPORTED_MODULE_0__.styleManager.cleanup();
+      _lib_input_js__WEBPACK_IMPORTED_MODULE_5__.emoteAutocomplete.cleanup();
+      _lib_mentions_js__WEBPACK_IMPORTED_MODULE_6__.usernameColorManager.cleanup();
+      _lib_emotes_js__WEBPACK_IMPORTED_MODULE_4__.emoteManager.cleanup();
+    });
 
-  if (DEBUG) {
-    console.info("Observer setup complete");
+  } catch (error) {
+    console.error("[PEEEEP] Initialization error:", error);
   }
 };
 
-setupObserver();
-
-// Disconnect observer when window is closing
-window.addEventListener("unload", () => {
-  if (observer) {
-    observer.disconnect();
-    if (DEBUG) {
-      console.info("Observer disconnected on window close");
-    }
-  }
-});
+initializeApp();
 })();
 
 
