@@ -5,29 +5,32 @@ export default {
   output: {
     filename: "bundle.js",
     path: path.resolve("dist"),
+    clean: true,
     libraryTarget: "module",
   },
-  target: 'web',
+  target: "web",
   optimization: {
-    minimize: false,
+    minimize: true,
     concatenateModules: true,
-    removeAvailableModules: false,
+    removeAvailableModules: true,
     splitChunks: false,
   },
   experiments: {
     outputModule: true,
   },
- 
-  devtool: 'eval-source-map',
-  mode: "development",
+  devtool: false,
+  mode: "production",
   module: {
     parser: {
       javascript: {
         exprContextCritical: false,
         importMeta: false,
         node: false,
-        browserHash: false
-      }
-    }
-  }
+        browserHash: false,
+      },
+    },
+  },
+  performance: {
+    hints: false,
+  },
 };
