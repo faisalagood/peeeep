@@ -5,23 +5,13 @@ export default {
   output: {
     filename: "bundle.js",
     path: path.resolve("dist"),
-    clean: true,
     libraryTarget: "module",
-  },
-  target: "web",
-  optimization: {
-    minimize: true,
-    concatenateModules: true,
-    removeAvailableModules: true,
-    splitChunks: false,
-    usedExports: true,
-    providedExports: true,
   },
   experiments: {
     outputModule: true,
   },
-  devtool: false,
-  mode: "production",
+  devtool: "source-map",
+  mode: "development",
   module: {
     parser: {
       javascript: {
@@ -31,8 +21,5 @@ export default {
         browserHash: false,
       },
     },
-  },
-  performance: {
-    hints: false,
   },
 };
